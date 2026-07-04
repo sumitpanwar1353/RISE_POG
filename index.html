@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Crystal POG Tracker</title>
+<meta name="theme-color" content="#1B3A6B">
+<style>
+:root{
+  --blue-dark:#1B3A6B;--blue:#2E5FA3;--blue-light:#EBF0FA;
+  --green:#2E8B57;--green-light:#E8F5EC;
+  --wheat:#D9A441;--wheat-light:#FBEFD9;
+  --danger:#C0392B;--danger-light:#FBECEC;
+  --purple:#6C4B7A;--purple-light:#EFE5F2;
+  --ink:#1A1F1C;--gray:#6B7570;--line:#D8E2DC;--white:#fff;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--blue-light);color:var(--ink);-webkit-tap-highlight-color:transparent;padding-bottom:80px;}
+header{background:linear-gradient(135deg,var(--blue-dark) 0%,#2E5FA3 100%);color:white;padding:18px 16px 14px;position:sticky;top:0;z-index:20;box-shadow:0 2px 12px rgba(0,0,0,0.2);}
+header h1{font-size:18px;font-weight:800;letter-spacing:0.2px;}
+header p{font-size:12px;opacity:0.82;margin-top:2px;}
+.role-badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;margin-left:8px;}
+.badge-tm{background:#fff3cd;color:#7a5c00;}
+.badge-rbm{background:#cce5ff;color:#003d7a;}
+.badge-zbm{background:#d4edda;color:#155724;}
+.badge-ceo{background:#f8d7da;color:#721c24;}
+main{padding:14px;}
+.card{background:white;border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,0.04);}
+label{display:block;font-size:12px;font-weight:700;color:var(--gray);margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.4px;}
+label:first-child{margin-top:0;}
+.req{color:var(--danger);}
+select,input,textarea{width:100%;padding:12px;font-size:14px;border:1.5px solid var(--line);border-radius:9px;background:white;color:var(--ink);font-family:inherit;}
+select:focus,input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(46,95,163,0.12);}
+input.uc{text-transform:uppercase;}
+input.uc::placeholder{text-transform:none;}
+.err-field{border-color:var(--danger)!important;background:#fdf1ef!important;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.btn{width:100%;padding:14px;font-size:15px;font-weight:700;border:none;border-radius:10px;background:var(--blue-dark);color:white;margin-top:16px;cursor:pointer;transition:opacity 0.15s;}
+.btn:active{opacity:0.85;}
+.btn-green{background:linear-gradient(135deg,var(--green) 0%,#1B5E3A 100%);}
+.btn-danger{background:var(--danger);}
+.btn-outline{background:white;color:var(--blue-dark);border:1.5px solid var(--blue-dark);margin-top:10px;}
+.btn-sm{padding:8px 14px;font-size:12.5px;font-weight:700;border:none;border-radius:8px;cursor:pointer;color:white;display:inline-flex;align-items:center;gap:5px;}
+.toast{position:fixed;bottom:90px;left:16px;right:16px;background:var(--ink);color:white;padding:14px;border-radius:12px;text-align:center;font-size:14px;font-weight:600;z-index:99;display:none;box-shadow:0 4px 20px rgba(0,0,0,0.25);}
+.toast.show{display:block;animation:up 0.25s ease;}
+.toast.err{background:var(--danger);}
+.toast.warn{background:#856404;}
+@keyframes up{from{transform:translateY(16px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.spinner{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,0.35);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:5px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.sec-title{font-size:12.5px;font-weight:800;color:var(--blue-dark);text-transform:uppercase;letter-spacing:0.5px;margin:18px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--blue-light);}
+.sec-title:first-child{margin-top:0;}
+/* Stats */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.stat{background:white;border-radius:14px;padding:14px;border:1px solid var(--line);border-top:4px solid var(--blue);box-shadow:0 2px 8px rgba(0,0,0,0.05);}
+.stat.green{border-top-color:var(--green);}
+.stat.wheat{border-top-color:var(--wheat);}
+.stat.danger{border-top-color:var(--danger);}
+.stat.purple{border-top-color:var(--purple);}
+.stat .num{font-size:22px;font-weight:800;color:var(--ink);margin-top:4px;}
+.stat .lbl{font-size:11px;color:var(--gray);font-weight:700;text-transform:uppercase;letter-spacing:0.3px;}
+/* Table */
+.table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--line);}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+th{text-align:left;padding:10px 8px;background:var(--blue-light);color:var(--blue-dark);font-weight:700;white-space:nowrap;position:sticky;top:0;}
+td{padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap;}
+.badge{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
+.b-approved{background:var(--green-light);color:var(--green);}
+.b-pending{background:var(--wheat-light);color:#7a5c00;}
+.b-reverted{background:var(--danger-light);color:var(--danger);}
+.b-locked{background:var(--blue-light);color:var(--blue-dark);}
+.minus-row{background:#fff8f8;}
+.minus-val{color:var(--danger);font-weight:700;}
+.plus-val{color:var(--green);font-weight:700;}
+/* Chart boxes */
+.chart-box{position:relative;height:200px;width:100%;margin-top:10px;}
+.chart-box canvas{position:absolute;top:0;left:0;width:100%!important;height:100%!important;}
+.chart-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:12px;}
+/* Info/Warn boxes */
+.info-box{background:var(--blue-light);border-left:4px solid var(--blue);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--blue-dark);margin:10px 0;}
+.warn-box{background:var(--wheat-light);border-left:4px solid var(--wheat);border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;color:#856404;margin:10px 0;}
+.danger-box{background:var(--danger-light);border-left:4px solid var(--danger);border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;color:var(--danger);margin:10px 0;}
+.success-box{background:var(--green-light);border-left:4px solid var(--green);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--green);margin:10px 0;}
+/* Filter bar */
+.filter-bar{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none;}
+.filter-bar::-webkit-scrollbar{display:none;}
+.chip{flex-shrink:0;padding:7px 14px;font-size:12px;font-weight:600;border-radius:20px;background:white;border:1.5px solid var(--line);color:var(--gray);cursor:pointer;}
+.chip.active{background:var(--blue-dark);color:white;border-color:var(--blue-dark);}
+/* Login */
+.login-wrap{max-width:420px;margin:30px auto;}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0;}
+.role-card{background:white;border:2px solid var(--line);border-radius:16px;padding:20px 14px;text-align:center;cursor:pointer;transition:all 0.15s;}
+.role-card:active,.role-card:hover{transform:scale(0.97);border-color:var(--blue);}
+.role-card .icon{font-size:30px;margin-bottom:8px;}
+.role-card .rname{font-size:14px;font-weight:800;color:var(--ink);}
+.role-card .rsub{font-size:11px;color:var(--gray);margin-top:3px;}
+/* Bulk table */
+.bulk-table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:700px;}
+.bulk-table th{padding:10px 8px;background:var(--blue-light);color:var(--blue-dark);font-weight:700;text-align:left;border-bottom:2px solid var(--line);}
+.bulk-table td{padding:6px 6px;border-bottom:1px solid var(--line);vertical-align:middle;}
+.bulk-table input[type=number]{padding:8px;font-size:13px;border:1.5px solid var(--line);border-radius:7px;width:100%;min-width:90px;}
+.bulk-table .last-pog{color:var(--gray);font-size:12px;background:var(--blue-light);padding:7px 10px;border-radius:6px;font-weight:600;min-width:80px;display:inline-block;text-align:center;}
+.bulk-table .chg-pos{color:var(--green);font-weight:700;}
+.bulk-table .chg-neg{color:var(--danger);font-weight:700;}
+/* TM Dashboard cards */
+.tm-dash-card{background:white;border-radius:14px;padding:14px;border-left:4px solid var(--blue);margin-bottom:10px;}
+/* Progress bar */
+.prog-bar{height:8px;background:var(--line);border-radius:10px;overflow:hidden;margin-top:6px;}
+.prog-fill{height:100%;border-radius:10px;transition:width 0.4s;}
+.prog-green{background:linear-gradient(90deg,var(--green),#52c28a);}
+.prog-wheat{background:linear-gradient(90deg,var(--wheat),#f0b94a);}
+.prog-danger{background:linear-gradient(90deg,var(--danger),#e74c3c);}
+/* Empty */
+.empty{text-align:center;padding:36px 20px;color:var(--gray);}
+.empty .eicon{font-size:34px;margin-bottom:8px;}
+/* Collapse */
+.collapse-hdr{display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+.collapse-hdr .arr{font-size:14px;color:var(--gray);transition:transform 0.2s;}
+.collapse-hdr.closed .arr{transform:rotate(-90deg);}
+.collapse-body.hidden{display:none;}
+@media(min-width:900px){
+  body{max-width:1320px;margin:0 auto;padding-bottom:20px;}
+  main{padding:20px 28px;}
+  .stat-grid{grid-template-columns:repeat(4,1fr);}
+  .chart-grid{grid-template-columns:1fr 1fr;}
+}
+</style>
+</head>
+<body>
+
+<header id="appHeader">
+  <h1>📦 Crystal POG Tracker</h1>
+  <p id="hSub">Weekly Liquidation — Field Sales</p>
+</header>
+
+<main>
+
+<!-- LOGIN -->
+<div id="s-login">
+<div class="login-wrap">
+  <div class="card">
+    <div class="sec-title" style="margin-top:0;">Select Your Role</div>
+    <div class="role-grid">
+      <div class="role-card" onclick="showPIN('TM')"><div class="icon">👨‍💼</div><div class="rname">TM</div><div class="rsub">Submit weekly POG</div></div>
+      <div class="role-card" onclick="showPIN('RBM')"><div class="icon">✅</div><div class="rname">RBM</div><div class="rsub">Review & approve</div></div>
+      <div class="role-card" onclick="showPIN('ZBM')"><div class="icon">📊</div><div class="rname">ZBM / SBU Head</div><div class="rsub">Zone dashboard</div></div>
+      <div class="role-card" onclick="showPIN('CEO')"><div class="icon">🏢</div><div class="rname">CEO / PM</div><div class="rsub">Full live dashboard</div></div>
+    </div>
+  </div>
+  <div class="card" id="pinCard" style="display:none;">
+    <div class="sec-title" style="margin-top:0;" id="pinLabel">Enter PIN</div>
+    <label>Access PIN</label>
+    <input type="password" id="pinInput" inputmode="numeric" placeholder="Enter PIN" maxlength="8" onkeydown="if(event.key==='Enter')verifyPIN()">
+    <button class="btn" onclick="verifyPIN()">Login →</button>
+    <button class="btn btn-outline" onclick="cancelPIN()">← Back</button>
+  </div>
+</div>
+</div>
+
+<!-- TM -->
+<div id="s-TM" style="display:none;">
+  <!-- Profile -->
+  <div class="card" id="tmProfileCard">
+    <div class="sec-title" style="margin-top:0;">👤 Your Profile</div>
+    <label>TM Name <span class="req">*</span></label>
+    <input id="t_name" class="uc" placeholder="Your full name">
+    <label>Mobile No <span class="req">*</span></label>
+    <input id="t_mob" type="tel" placeholder="10-digit mobile">
+    <div class="row2">
+      <div><label>Zone <span class="req">*</span></label>
+        <select id="t_zone"><option value="">Select</option><option>ZONE-1</option><option>ZONE-2</option><option>ZONE-3</option><option>ZONE-4</option><option>ZONE-5</option></select>
+      </div>
+      <div><label>Region <span class="req">*</span></label>
+        <select id="t_region"><option value="">Select Region</option></select>
+      </div>
+    </div>
+    <label>Territory <span class="req">*</span></label>
+    <select id="t_terr"><option value="">Select Territory</option></select>
+    <label>Season <span class="req">*</span></label>
+    <select id="t_season"><option value="">Select</option>
+      <option>Kharif 25-26</option><option>Rabi 25-26</option><option>Spring 25-26</option>
+      <option>Kharif 26-27</option><option>Rabi 26-27</option><option>Spring 26-27</option>
+    </select>
+    <button class="btn" onclick="saveProfile()">Save Profile & Continue →</button>
+  </div>
+
+  <!-- TM Dashboard -->
+  <div id="tmDash" style="display:none;">
+    <div class="stat-grid">
+      <div class="stat green"><div class="lbl">Total POG Submitted</div><div class="num" id="td_pog">0</div></div>
+      <div class="stat wheat"><div class="lbl">Total AOPB (Locked)</div><div class="num" id="td_aopb">0</div></div>
+      <div class="stat"><div class="lbl">% AOPB Achieved</div><div class="num" id="td_pct">0%</div></div>
+      <div class="stat danger"><div class="lbl">⚠️ Reverted</div><div class="num" id="td_rev">0</div></div>
+    </div>
+    <div class="chart-grid">
+      <div class="card"><div class="sec-title" style="margin-top:0;">POG Trend (Crop-wise)</div><div class="chart-box"><canvas id="tc_trend"></canvas></div></div>
+      <div class="card"><div class="sec-title" style="margin-top:0;">AOPB vs Achieved</div><div class="chart-box"><canvas id="tc_aopb"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- AOPB Section -->
+  <div class="card" id="aopbCard" style="display:none;">
+    <div class="collapse-hdr" onclick="toggleSec('aopbBody',this)">
+      <div class="sec-title" style="margin-top:0;border:none;">📌 Set AOPB (One-time Lock)</div>
+      <span class="arr">▼</span>
+    </div>
+    <div class="collapse-body" id="aopbBody">
+      <div class="info-box">Set your Annual Offtake Plan for each Crop+Hybrid. Once locked, it cannot be changed.</div>
+      <label>Crop <span class="req">*</span></label>
+      <select id="a_crop"><option value="">Select</option>
+        <option>Maize</option><option>Paddy</option><option>Cotton</option>
+        <option>Pearl Millet</option><option>Mustard</option><option>Wheat</option>
+        <option>Basmati</option><option>Fodder</option>
+      </select>
+      <div id="aopbHybridRows"></div>
+      <button class="btn" onclick="submitAOPB()">🔒 Lock AOPB for this Crop</button>
+      <div class="sec-title">Your Locked AOPBs</div>
+      <div id="aopbList"></div>
+    </div>
+  </div>
+
+  <!-- Initial YEF -->
+  <div class="card" id="yefCard" style="display:none;">
+    <div class="collapse-hdr" onclick="toggleSec('yefBody',this)">
+      <div class="sec-title" style="margin-top:0;border:none;">📈 Set Initial YEF (One-time Lock)</div>
+      <span class="arr">▼</span>
+    </div>
+    <div class="collapse-body" id="yefBody">
+      <div class="info-box">Year End Forecast — your confidence on how much you will sell by end of season. Set once, locked. You can update Current YEF weekly during POG submission.</div>
+      <label>Crop <span class="req">*</span></label>
+      <select id="iy_crop"><option value="">Select</option>
+        <option>Maize</option><option>Paddy</option><option>Cotton</option>
+        <option>Pearl Millet</option><option>Mustard</option><option>Wheat</option>
+        <option>Basmati</option><option>Fodder</option>
+      </select>
+      <div id="yefHybridRows"></div>
+      <button class="btn" onclick="submitInitialYEF()">🔒 Lock Initial YEF</button>
+      <div class="sec-title">Your Locked Initial YEFs</div>
+      <div id="yefList"></div>
+    </div>
+  </div>
+
+  <!-- Weekly POG Entry -->
+  <div class="card" id="pogCard" style="display:none;">
+    <div class="sec-title" style="margin-top:0;">📦 Weekly POG Entry</div>
+    <div class="row2">
+      <div><label>Crop <span class="req">*</span></label>
+        <select id="p_crop" onchange="buildBulkTable()">
+          <option value="">Select Crop</option>
+          <option>Maize</option><option>Paddy</option><option>Cotton</option>
+          <option>Pearl Millet</option><option>Mustard</option><option>Wheat</option>
+          <option>Basmati</option><option>Fodder</option>
+        </select>
+      </div>
+      <div><label>Week Date <span class="req">*</span></label>
+        <input id="p_date" type="date">
+      </div>
+    </div>
+
+    <!-- Crop-level fields -->
+    <div id="cropLevelFields" style="display:none;">
+      <div class="sec-title">Market & Competition (Crop-level)</div>
+      <label>Season Progress % <span class="req">*</span>
+        <span style="font-size:11px;font-weight:400;color:var(--gray);">(All companies combined, out of total market potential)</span>
+      </label>
+      <input id="p_season_progress" type="number" min="0" max="100" placeholder="e.g. 45">
+
+      <label>Current YEF (Your Forecast) <span class="req">*</span></label>
+      <input id="p_current_yef" type="number" placeholder="Total qty you expect to sell by season end">
+
+      <div class="sec-title" style="margin-top:14px;">Competition POG (Crop-level)</div>
+      <div class="row3">
+        <div><label>Bayer</label><input id="c_bayer" type="number" placeholder="0"></div>
+        <div><label>Corteva</label><input id="c_corteva" type="number" placeholder="0"></div>
+        <div><label>Syngenta</label><input id="c_syngenta" type="number" placeholder="0"></div>
+      </div>
+      <div class="row2">
+        <div><label>Advanta</label><input id="c_advanta" type="number" placeholder="0"></div>
+        <div><label>Others</label><input id="c_others" type="number" placeholder="0"></div>
+      </div>
+    </div>
+
+    <!-- Bulk Hybrid Table -->
+    <div id="bulkTableWrap" style="display:none;margin-top:14px;">
+      <div class="sec-title">Hybrid-wise POG (All hybrids for this crop)</div>
+      <div class="info-box" style="margin-bottom:10px;">Last POG is shown read-only. Enter Current Cumulative POG for each hybrid. Leave blank to skip.</div>
+      <div class="table-wrap">
+        <table class="bulk-table">
+          <tr>
+            <th>Hybrid</th>
+            <th>Last Submitted POG</th>
+            <th>Current Cumulative POG</th>
+            <th>Week Change</th>
+          </tr>
+          <tbody id="bulkTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="decreaseWarnGlobal" style="display:none;" class="danger-box">⚠️ One or more hybrids show POG decrease! This will be flagged to RBM/ZBM/CEO. Verify before submitting.</div>
+
+    <button class="btn btn-green" id="bulkSubmitBtn" style="display:none;" onclick="submitBulkPOG()">
+      📤 Submit All POG Entries
+    </button>
+
+    <!-- My Recent Entries -->
+    <div class="sec-title">My Recent Entries</div>
+    <div id="myPOGList"></div>
+  </div>
+</div>
+
+<!-- RBM -->
+<div id="s-RBM" style="display:none;">
+  <div class="card">
+    <div class="row2">
+      <div><label>Zone</label>
+        <select id="r_zone" onchange="cascadeRBMRegion();loadRBM()">
+          <option value="">All Zones</option><option>ZONE-1</option><option>ZONE-2</option><option>ZONE-3</option><option>ZONE-4</option><option>ZONE-5</option>
+        </select>
+      </div>
+      <div><label>Region</label>
+        <select id="r_region" onchange="loadRBM()"><option value="">All Regions</option></select>
+      </div>
+    </div>
+    <div class="filter-bar" id="rbmSeasonFilter"></div>
+  </div>
+  <div class="stat-grid">
+    <div class="stat wheat"><div class="lbl">Pending</div><div class="num" id="rs_pend">0</div></div>
+    <div class="stat green"><div class="lbl">Approved</div><div class="num" id="rs_appr">0</div></div>
+    <div class="stat danger"><div class="lbl">⚠️ Minus POG</div><div class="num" id="rs_minus">0</div></div>
+    <div class="stat"><div class="lbl">Reverted</div><div class="num" id="rs_rev">0</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="card"><div class="sec-title" style="margin-top:0;">POG by Crop (Approved)</div><div class="chart-box"><canvas id="rc_crop"></canvas></div></div>
+    <div class="card"><div class="sec-title" style="margin-top:0;">TM Performance</div><div class="chart-box"><canvas id="rc_tm"></canvas></div></div>
+  </div>
+  <div class="sec-title">⏳ Pending Approvals</div>
+  <div id="rbmPending"></div>
+  <div class="sec-title">✅ Approved Entries</div>
+  <div id="rbmApproved"></div>
+</div>
+
+<!-- ZBM -->
+<div id="s-ZBM" style="display:none;">
+  <div class="card">
+    <div class="row3">
+      <div><label>SBU</label>
+        <select id="z_sbu" onchange="loadZBM()"><option value="">All SBUs</option><option>SBU-1</option><option>SBU-2</option><option>SBU-3</option></select>
+      </div>
+      <div><label>Zone</label>
+        <select id="z_zone" onchange="loadZBM()"><option value="">All Zones</option><option>ZONE-1</option><option>ZONE-2</option><option>ZONE-3</option><option>ZONE-4</option><option>ZONE-5</option></select>
+      </div>
+      <div><label>Season</label>
+        <select id="z_season" onchange="loadZBM()"><option value="">All</option>
+          <option>Kharif 25-26</option><option>Rabi 25-26</option><option>Kharif 26-27</option><option>Rabi 26-27</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="stat-grid">
+    <div class="stat green"><div class="lbl">Total POG (Approved)</div><div class="num" id="zs_pog">0</div></div>
+    <div class="stat wheat"><div class="lbl">Total AOPB</div><div class="num" id="zs_aopb">0</div></div>
+    <div class="stat"><div class="lbl">% Achievement</div><div class="num" id="zs_pct">0%</div></div>
+    <div class="stat danger"><div class="lbl">⚠️ Minus Entries</div><div class="num" id="zs_minus">0</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="card"><div class="sec-title" style="margin-top:0;">POG by Zone</div><div class="chart-box"><canvas id="zc_zone"></canvas></div></div>
+    <div class="card"><div class="sec-title" style="margin-top:0;">POG vs AOPB by Crop</div><div class="chart-box"><canvas id="zc_crop"></canvas></div></div>
+  </div>
+  <div class="card">
+    <div class="sec-title" style="margin-top:0;">Season Progress & YEF by Crop</div>
+    <div id="zYEFTable"></div>
+  </div>
+  <div class="card">
+    <div class="sec-title" style="margin-top:0;">Competition POG by Crop</div>
+    <div id="zCompTable"></div>
+  </div>
+  <div class="card">
+    <div class="sec-title" style="margin-top:0;">TM-wise Summary</div>
+    <div id="zTMTable"></div>
+  </div>
+</div>
+
+<!-- CEO -->
+<div id="s-CEO" style="display:none;">
+  <div class="card">
+    <div class="row3">
+      <div><label>Season</label>
+        <select id="c_season" onchange="loadCEO()"><option value="">All</option>
+          <option>Kharif 25-26</option><option>Rabi 25-26</option><option>Kharif 26-27</option><option>Rabi 26-27</option>
+        </select>
+      </div>
+      <div><label>Crop</label>
+        <select id="c_crop" onchange="loadCEO()"><option value="">All</option>
+          <option>Maize</option><option>Paddy</option><option>Cotton</option><option>Pearl Millet</option><option>Mustard</option><option>Wheat</option>
+        </select>
+      </div>
+      <div><label>SBU</label>
+        <select id="c_sbu" onchange="loadCEO()"><option value="">All</option><option>SBU-1</option><option>SBU-2</option><option>SBU-3</option></select>
+      </div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn-sm" style="background:var(--green);" onclick="loadCEO()">🔄 Refresh</button>
+      <button class="btn-sm" style="background:var(--blue-dark);" onclick="exportCEO()">⬇️ Export CSV</button>
+    </div>
+  </div>
+  <div class="stat-grid">
+    <div class="stat green"><div class="lbl">Total POG (Approved)</div><div class="num" id="cs_pog">0</div></div>
+    <div class="stat wheat"><div class="lbl">Total AOPB</div><div class="num" id="cs_aopb">0</div></div>
+    <div class="stat"><div class="lbl">% Achievement</div><div class="num" id="cs_pct">0%</div></div>
+    <div class="stat danger"><div class="lbl">⚠️ Minus POG</div><div class="num" id="cs_minus">0</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="card"><div class="sec-title" style="margin-top:0;">POG by SBU</div><div class="chart-box"><canvas id="cc_sbu"></canvas></div></div>
+    <div class="card"><div class="sec-title" style="margin-top:0;">AOPB vs POG by Crop</div><div class="chart-box"><canvas id="cc_crop"></canvas></div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="card"><div class="sec-title" style="margin-top:0;">Competition Market Share</div><div class="chart-box"><canvas id="cc_comp"></canvas></div></div>
+    <div class="card"><div class="sec-title" style="margin-top:0;">Season Progress by Crop</div><div class="chart-box"><canvas id="cc_season"></canvas></div></div>
+  </div>
+  <div class="card">
+    <div class="sec-title" style="margin-top:0;">YEF Analysis (Initial vs Current)</div>
+    <div id="cYEFTable"></div>
+  </div>
+  <div class="card">
+    <div class="sec-title" style="margin-top:0;">Zone-wise Summary</div>
+    <div id="cZoneTable"></div>
+  </div>
+  <div class="card">
+    <div class="sec-title" style="margin-top:0;">All Approved Entries</div>
+    <div id="cAllTable"></div>
+  </div>
+</div>
+
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+/* ====== CONFIG ====== */
+const API_URL = "https://script.google.com/macros/s/AKfycbxwPCrsad-dnnWy_Gc4fUeqQOovSc2zMB_hD693SUKnXyJhNSbuZnOZxTZiU5AMNxAZ/exec";
+const PINS = { TM:"TM2026", RBM:"RBM2026", ZBM:"ZBM2026", CEO:"CEO2026" };
+
+const ZONE_REGIONS = {
+  "ZONE-1":["BHATINDA","HISSAR"],"ZONE-2":["AHAMDABAD","ALWAR","JAIPUR","UP-AGRA"],
+  "ZONE-3":["LUCKNOW","PATNA","RAIPUR"],"ZONE-4":["CS NAGAR","JALGAON","NAGPUR"],
+  "ZONE-5":["GUNTUR","HUBLI","HYDERABAD","WARANGAL"]
+};
+const REGION_TERR = {
+  "BHATINDA":["JALANDHAR","PB-AMRITSAR","PB-BHATINDA","PB-MOGA","PB-PATIALA","RJ-HANUMANGARH","RJ-SRIGANGANAGAR"],
+  "HISSAR":["HR-SIRSA"],"AHAMDABAD":["GU-BADOLI","GU-HIMMATNAGAR","GU-VADODARA"],
+  "ALWAR":["RJ-BHARATPUR"],"JAIPUR":["HINDAUN","RJ-BHILWARA","RJ-CHITTORGARH","RJ-JAIPUR","RJ-Kota","RJ-SAWAI MADHOPUR"],
+  "UP-AGRA":["UP-BAREILLY","UP-KANPUR","UP-MUZAFFARNAGAR"],
+  "LUCKNOW":["UP-AYODHYA","UP-AZAMGARH","UP-BAHRAICH","UP-GORAKKHPUR","UP-HARDOI","UP-KANNAUJ","UP-PRAYAGRAJ"],
+  "PATNA":["BH-Araria","BH-BETIAH","BH-Khagaria","BH-PATNA","BH-PURNEA","BH-SAHARSA","BH-SAMASTIPUR","RAIGANJ"],
+  "RAIPUR":["BH-DALTANGANJ","BH-RANCHI","CG-AMBIKAPUR","CG-RAMANUJGANJ","MP-REWA"],
+  "CS NAGAR":["MS-AHMADNAGAR","MS-JALNA","MS-MALEGAON","MS-SOLAPUR"],
+  "JALGAON":["MP-GUNA","MP-KHARGAON","MS-Dhule","MS-JALGAON"],
+  "NAGPUR":["MP-CHINDWARA","MS-AKOLA","MS-NAGPUR"],
+  "GUNTUR":["AP-ADONI","AP-ELURU","AP-GUNTUR","AP-KURNOOL"],
+  "HUBLI":["KA-BELLARY","KA-DAVANGERE","KA-HUBLI","KA-MYSORE","KA-RAICHUR","KA-VIJAYAPURA"],
+  "HYDERABAD":["TG-JADCHARLA","TG-KHAMMAM","TG-NAGARKURNOOL","TG-NARAYANKHED","TG-Nalgonda","TG-SADASHIVPET"],
+  "WARANGAL":["TG-ADILABAD","TG-GAJWEL","TG-KARIMNAGAR","TG-NIZAMABAD"]
+};
+const CROP_HYBRIDS = {
+  Maize:["CMH 157","CMH 3456","CMH 6453","ICRON 4455","PA 6004","PA 6096","PA 6106","PA 6108","PA 6110","PA 6121","PA 6123","PA 6322","PA 6354","PA 6401","PA 6666","PA 6730","PA 6755","RMH 1818","RMH 1899 S","RMH 666*"],
+  Paddy:["10X Gold","CHR 106","CHR 846","Deepika","Divya","Divyashree","Heera","IRICE 413","IRICE 4655","Narmada","PA 4601","PA 4633","PA 4647","PA 4666 G","PA 4672","Pro Poha"],
+  Cotton:["CCH 09","CCH 369","CCH 666","CCH 999","SP 7172 PLUS","SP 7576 BGII","SP 7674 BGII","SURPASS 7272","SURPASS 7670","SURPASS 7706"],
+  "Pearl Millet":["MILLET 9001","MILLET 9010","MILLET 9072","MILLET 9180","MILLET 9285","MILLET 9385","MILLET 9444","MILLET 9666","MLBH-308"],
+  Mustard:["MUSTARD 5100","MUSTARD 5210","MUSTARD 5222","MUSTARD 5232","MUSTARD 5235","MUSTARD BASANT","MUSTARD KESARI 5111","MUSTARD OLIVIA","MUSTARD SUNHARI"],
+  Wheat:["WHEAT 4110","WHEAT 4130","WHEAT 4140"],
+  Basmati:["PB 1121","PB 1509","PB 1692","PB 1718","PB 1847","PS 1853"],
+  Fodder:["CORNFEED PREMIUM","DAIRYGREEN","DHUADHAR","MILKON","POSHAN","SX 21","ULTRA FEED"]
+};
+const COMP_KEYS = ["Bayer","Corteva","Syngenta","Advanta","Others"];
+const CHART_COLORS = ["#2E5FA3","#2E8B57","#D9A441","#C0392B","#6C4B7A","#3E7C9E","#E67E22","#1B3A6B"];
+
+let currentRole = null, pendingRole = null, tmProfile = null;
+let lastPOGMap = {}, aopbData = [], yefData = [];
+let chartInsts = {};
+let rbmSeasonFilter = "ALL";
+
+/* ====== UTILS ====== */
+function $(id){ return document.getElementById(id); }
+function showToast(msg, type=""){
+  const t=$("toast"); t.textContent=msg;
+  t.className="toast show"+(type?" "+type:"");
+  setTimeout(()=>t.className="toast",3200);
+}
+function fmtN(n){ return (parseFloat(n)||0).toLocaleString("en-IN"); }
+function getSBU(zone){
+  const z=(zone||"").toUpperCase();
+  if(z.includes("ZONE-3")||z.includes("ZONE-4")) return "SBU-1";
+  if(z.includes("ZONE-1")||z.includes("ZONE-2")) return "SBU-2";
+  if(z.includes("ZONE-5")) return "SBU-3";
+  return "";
+}
+async function api(params){
+  if(API_URL.includes("PASTE_YOUR")){ showToast("API URL not set yet","err"); return null; }
+  try{
+    const r = await fetch(API_URL,{method:"POST",body:new URLSearchParams(params)});
+    return await r.json();
+  }catch(e){ showToast("Network error","err"); return null; }
+}
+function mkChart(id,type,labels,datasets,extra={}){
+  if(chartInsts[id]) chartInsts[id].destroy();
+  chartInsts[id]=new Chart($(id),{type,data:{labels,datasets},
+    options:{maintainAspectRatio:false,resizeDelay:200,
+      plugins:{legend:{position:'bottom',labels:{font:{size:11},boxWidth:12}}},
+      ...extra}});
+}
+function toggleSec(bodyId,hdr){
+  const b=$(bodyId);
+  b.classList.toggle("hidden");
+  hdr.classList.toggle("closed");
+}
+
+/* ====== LOGIN ====== */
+function showPIN(role){
+  pendingRole=role;
+  const lbl={TM:"Territory Manager PIN",RBM:"RBM Access PIN",ZBM:"ZBM / SBU Head PIN",CEO:"CEO / PM PIN"};
+  $("pinLabel").textContent=lbl[role];
+  $("pinCard").style.display="block";
+  $("pinInput").value=""; $("pinInput").focus();
+}
+function cancelPIN(){ $("pinCard").style.display="none"; pendingRole=null; }
+function verifyPIN(){
+  const v=$("pinInput").value.trim();
+  if(v!==PINS[pendingRole]){ showToast("Incorrect PIN","err"); return; }
+  currentRole=pendingRole;
+  $("s-login").style.display="none";
+  $("s-"+currentRole).style.display="block";
+  const bmap={TM:"badge-tm",RBM:"badge-rbm",ZBM:"badge-zbm",CEO:"badge-ceo"};
+  const nmap={TM:"Territory Manager",RBM:"RBM",ZBM:"ZBM / SBU",CEO:"CEO / PM"};
+  $("hSub").innerHTML=`Weekly Liquidation <span class="role-badge ${bmap[currentRole]}">${nmap[currentRole]}</span>`;
+  if(currentRole==="RBM"){ setupRBMSeasonFilter(); loadRBM(); }
+  if(currentRole==="ZBM") loadZBM();
+  if(currentRole==="CEO") loadCEO();
+}
+
+/* ====== CASCADES ====== */
+function cascadeRegion(zId,rId,tId){
+  $(zId).addEventListener("change",()=>{
+    const z=$(zId).value;
+    $(rId).innerHTML='<option value="">Select Region</option>'+(ZONE_REGIONS[z]||[]).map(r=>`<option>${r}</option>`).join("");
+    if(tId) $(tId).innerHTML='<option value="">Select Territory</option>';
+  });
+  if(tId) $(rId).addEventListener("change",()=>{
+    const r=$(rId).value;
+    $(tId).innerHTML='<option value="">Select Territory</option>'+(REGION_TERR[r]||[]).map(t=>`<option>${t}</option>`).join("");
+  });
+}
+cascadeRegion("t_zone","t_region","t_terr");
+function cascadeRBMRegion(){
+  const z=$("r_zone").value;
+  $("r_region").innerHTML='<option value="">All Regions</option>'+(ZONE_REGIONS[z]||[]).map(r=>`<option>${r}</option>`).join("");
+}
+
+/* ====== UPPERCASE ====== */
+$("t_name").addEventListener("input",()=>{ $("t_name").value=$("t_name").value.toUpperCase(); });
+
+/* ====== TM PROFILE ====== */
+async function saveProfile(){
+  const n=$("t_name").value.trim(), m=$("t_mob").value.trim();
+  const z=$("t_zone").value, r=$("t_region").value, tr=$("t_terr").value, s=$("t_season").value;
+  if(!n||!m||!z||!r||!tr||!s){ showToast("Fill all fields","err"); return; }
+  if(m.replace(/\D/g,"").length!==10){ showToast("Mobile must be 10 digits","err"); return; }
+  tmProfile={name:n,mobile:m,zone:z,region:r,territory:tr,season:s};
+  $("aopbCard").style.display="block";
+  $("yefCard").style.display="block";
+  $("pogCard").style.display="block";
+  loadAOPBList(); loadYEFList(); loadMyPOG(); loadTMDash();
+  showToast("✅ Profile saved!");
+}
+
+/* ====== AOPB ====== */
+$("a_crop").addEventListener("change",()=>buildHybridInputs("a_crop","aopbHybridRows","aopb"));
+function buildHybridInputs(cropSelId, containerId, prefix){
+  const crop=$(cropSelId).value;
+  if(!crop){ $(containerId).innerHTML=""; return; }
+  const hybrids=CROP_HYBRIDS[crop]||[];
+  $(containerId).innerHTML=`<div style="margin-top:12px;"><div class="table-wrap"><table class="bulk-table">
+    <tr><th>Hybrid</th><th>Qty (Kg/Pkt)</th></tr>
+    ${hybrids.map(h=>`<tr><td>${h}</td><td><input type="number" id="${prefix}_${h.replace(/\s/g,'_')}" placeholder="0" min="0"></td></tr>`).join("")}
+  </table></div></div>`;
+}
+async function submitAOPB(){
+  if(!tmProfile){ showToast("Save profile first","err"); return; }
+  const crop=$("a_crop").value;
+  if(!crop){ showToast("Select crop","err"); return; }
+  const hybrids=CROP_HYBRIDS[crop]||[];
+  let count=0;
+  for(const h of hybrids){
+    const val=$(("aopb_"+h.replace(/\s/g,'_')))?.value;
+    if(!val||parseFloat(val)<=0) continue;
+    const res=await api({action:"submit_aopb",tmName:tmProfile.name,zone:tmProfile.zone,region:tmProfile.region,territory:tmProfile.territory,season:tmProfile.season,crop,hybrid:h,aopb:val});
+    if(res?.ok) count++;
+    else if(res) showToast(`${h}: ${res.error}`,"warn");
+  }
+  if(count>0){ showToast(`✅ ${count} AOPB entries locked!`); loadAOPBList(); }
+}
+async function loadAOPBList(){
+  if(!tmProfile) return;
+  const res=await api({action:"get_aopb",tmName:tmProfile.name,season:tmProfile.season});
+  if(!res?.ok) return;
+  aopbData=res.rows;
+  $("aopbList").innerHTML=res.rows.length
+    ?`<div class="table-wrap"><table><tr><th>Crop</th><th>Hybrid</th><th>AOPB</th></tr>${res.rows.map(r=>`<tr><td>${r.Crop}</td><td>${r.Hybrid}</td><td>${fmtN(r.AOPB)}</td></tr>`).join("")}</table></div>`
+    :'<div class="empty"><div class="eicon">📌</div>No AOPB set yet</div>';
+}
+
+/* ====== INITIAL YEF ====== */
+$("iy_crop").addEventListener("change",()=>buildHybridInputs("iy_crop","yefHybridRows","yef"));
+async function submitInitialYEF(){
+  if(!tmProfile){ showToast("Save profile first","err"); return; }
+  const crop=$("iy_crop").value;
+  if(!crop){ showToast("Select crop","err"); return; }
+  const hybrids=CROP_HYBRIDS[crop]||[];
+  let count=0;
+  for(const h of hybrids){
+    const val=$("yef_"+h.replace(/\s/g,'_'))?.value;
+    if(!val||parseFloat(val)<=0) continue;
+    const res=await api({action:"submit_initial_yef",tmName:tmProfile.name,zone:tmProfile.zone,region:tmProfile.region,territory:tmProfile.territory,season:tmProfile.season,crop,hybrid:h,initialYEF:val});
+    if(res?.ok) count++;
+  }
+  if(count>0){ showToast(`✅ ${count} Initial YEF entries locked!`); loadYEFList(); }
+}
+async function loadYEFList(){
+  if(!tmProfile) return;
+  const res=await api({action:"get_initial_yef",tmName:tmProfile.name,season:tmProfile.season});
+  if(!res?.ok) return;
+  yefData=res.rows;
+  $("yefList").innerHTML=res.rows.length
+    ?`<div class="table-wrap"><table><tr><th>Crop</th><th>Hybrid</th><th>Initial YEF</th></tr>${res.rows.map(r=>`<tr><td>${r.Crop}</td><td>${r.Hybrid}</td><td>${fmtN(r.InitialYEF)}</td></tr>`).join("")}</table></div>`
+    :'<div class="empty"><div class="eicon">📈</div>No Initial YEF set yet</div>';
+}
+
+/* ====== BULK POG TABLE ====== */
+$("p_crop").addEventListener("change",()=>{ buildBulkTable(); $("cropLevelFields").style.display=$("p_crop").value?"block":"none"; });
+
+async function buildBulkTable(){
+  if(!tmProfile) return;
+  const crop=$("p_crop").value;
+  if(!crop){ $("bulkTableWrap").style.display="none"; $("bulkSubmitBtn").style.display="none"; return; }
+  const hybrids=CROP_HYBRIDS[crop]||[];
+  // Fetch last POG for each hybrid
+  const tbody=$("bulkTableBody");
+  tbody.innerHTML=`<tr><td colspan="4" style="text-align:center;padding:12px;color:var(--gray)"><span class="spinner"></span>Loading last POG...</td></tr>`;
+  $("bulkTableWrap").style.display="block";
+  $("bulkSubmitBtn").style.display="block";
+
+  const lastRes=await api({action:"get_last_pog_bulk",tmName:tmProfile.name,zone:tmProfile.zone,region:tmProfile.region,territory:tmProfile.territory,season:tmProfile.season,crop});
+  lastPOGMap={};
+  if(lastRes?.ok) lastRes.rows.forEach(r=>{ lastPOGMap[r.Hybrid]=parseFloat(r.CumulativePOG)||0; });
+
+  tbody.innerHTML=hybrids.map(h=>{
+    const last=lastPOGMap[h]||0;
+    return`<tr>
+      <td style="font-weight:600;">${h}</td>
+      <td><span class="last-pog">${last>0?fmtN(last):'—'}</span></td>
+      <td><input type="number" id="pog_${h.replace(/[\s\*]/g,'_')}" min="0" placeholder="${last>0?last:0}" oninput="updateChange('${h}')"></td>
+      <td id="chg_${h.replace(/[\s\*]/g,'_')}" style="font-weight:700;min-width:80px;">—</td>
+    </tr>`;
+  }).join("");
+}
+
+function updateChange(hybrid){
+  const key=hybrid.replace(/[\s\*]/g,'_');
+  const cur=parseFloat($("pog_"+key)?.value)||0;
+  const last=lastPOGMap[hybrid]||0;
+  const chg=cur-last;
+  const cell=$("chg_"+key);
+  if(!cell) return;
+  if(cur===0){ cell.textContent="—"; cell.className=""; return; }
+  cell.textContent=(chg>=0?"▲ +":"▼ ")+fmtN(Math.abs(chg));
+  cell.className=chg>=0?"chg-pos":"chg-neg";
+  // Check any minus
+  const anyMinus=Array.from(document.querySelectorAll('[id^="pog_"]')).some(inp=>{
+    const h=inp.id.replace("pog_","").replace(/_/g," ");
+    const c=parseFloat(inp.value)||0;
+    const l=lastPOGMap[h]||lastPOGMap[inp.id.replace("pog_","").replace(/_/g," *")]||0;
+    return c>0&&c<l;
+  });
+  $("decreaseWarnGlobal").style.display=anyMinus?"block":"none";
+}
+
+async function submitBulkPOG(){
+  if(!tmProfile){ showToast("Save profile first","err"); return; }
+  const crop=$("p_crop").value, wdate=$("p_date").value;
+  const seaProg=$("p_season_progress").value;
+  const curYEF=$("p_current_yef").value;
+  if(!crop||!wdate){ showToast("Select Crop and Week Date","err"); return; }
+  if(!seaProg){ showToast("Season Progress % required","err"); return; }
+  if(!curYEF){ showToast("Current YEF required","err"); return; }
+  const hybrids=CROP_HYBRIDS[crop]||[];
+  const btn=$("bulkSubmitBtn");
+  btn.innerHTML='<span class="spinner"></span>Submitting...'; btn.disabled=true;
+  const weekLabel="W/E "+new Date(wdate).toLocaleDateString("en-IN");
+  const compData={Bayer:$("c_bayer").value||0,Corteva:$("c_corteva").value||0,Syngenta:$("c_syngenta").value||0,Advanta:$("c_advanta").value||0,Others:$("c_others").value||0};
+  let submitted=0, skipped=0;
+  for(const h of hybrids){
+    const key=h.replace(/[\s\*]/g,'_');
+    const cur=parseFloat($("pog_"+key)?.value);
+    if(isNaN(cur)||cur<0){ skipped++; continue; }
+    const last=lastPOGMap[h]||0;
+    const wchg=cur-last;
+    const res=await api({action:"submit_pog",tmName:tmProfile.name,tmMobile:tmProfile.mobile,zone:tmProfile.zone,region:tmProfile.region,territory:tmProfile.territory,season:tmProfile.season,crop,hybrid:h,weekDate:wdate,weekLabel,cumulativePOG:cur,prevCumulativePOG:last,weekChange:wchg,seasonProgress:seaProg,currentYEF:curYEF,...Object.fromEntries(COMP_KEYS.map(k=>["comp"+k,compData[k]]))});
+    if(res?.ok) submitted++;
+    else if(res) showToast(`${h}: ${res.error}`,"warn");
+  }
+  btn.innerHTML="📤 Submit All POG Entries"; btn.disabled=false;
+  if(submitted>0){
+    const hasMinus=Object.keys(lastPOGMap).some(h=>{
+      const k=h.replace(/[\s\*]/g,'_');
+      const c=parseFloat($("pog_"+k)?.value)||0;
+      return c>0&&c<(lastPOGMap[h]||0);
+    });
+    if(hasMinus) showToast(`✅ ${submitted} entries submitted — ⚠️ Some show POG decrease, flagged for RBM`,"warn");
+    else showToast(`✅ ${submitted} entries submitted successfully!`);
+    document.querySelectorAll('[id^="pog_"]').forEach(i=>i.value="");
+    document.querySelectorAll('[id^="chg_"]').forEach(c=>{c.textContent="—";c.className="";});
+    $("decreaseWarnGlobal").style.display="none";
+    $("c_bayer").value=""; $("c_corteva").value=""; $("c_syngenta").value=""; $("c_advanta").value=""; $("c_others").value="";
+    buildBulkTable(); loadMyPOG(); loadTMDash();
+  }
+}
+
+/* ====== TM DASHBOARD ====== */
+async function loadTMDash(){
+  if(!tmProfile) return;
+  const [pogRes,aRes]=await Promise.all([
+    api({action:"get_pog",tmName:tmProfile.name,season:tmProfile.season}),
+    api({action:"get_aopb",tmName:tmProfile.name,season:tmProfile.season})
+  ]);
+  if(!pogRes?.ok) return;
+  $("tmDash").style.display="block";
+  const apprRows=pogRes.rows.filter(r=>r.Status==="Approved");
+  const totalPOG=apprRows.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
+  const totalAOPB=(aRes?.rows||[]).reduce((s,r)=>s+(parseFloat(r.AOPB)||0),0);
+  const pct=totalAOPB>0?Math.round(totalPOG/totalAOPB*100):0;
+  const revCount=pogRes.rows.filter(r=>r.Status==="Reverted").length;
+  $("td_pog").textContent=fmtN(totalPOG);
+  $("td_aopb").textContent=fmtN(totalAOPB);
+  $("td_pct").textContent=pct+"%";
+  $("td_rev").textContent=revCount;
+  // Crop-wise POG chart
+  const cropMap={};
+  apprRows.forEach(r=>{const c=r.Crop||"Other";cropMap[c]=(cropMap[c]||0)+(parseFloat(r.CumulativePOG)||0);});
+  mkChart("tc_trend","doughnut",Object.keys(cropMap),[{data:Object.values(cropMap),backgroundColor:CHART_COLORS}]);
+  // AOPB vs Achieved bar
+  const aopbMap={};
+  (aRes?.rows||[]).forEach(r=>{const c=r.Crop||"Other";aopbMap[c]=(aopbMap[c]||0)+(parseFloat(r.AOPB)||0);});
+  const crops=Object.keys(aopbMap);
+  mkChart("tc_aopb","bar",crops,[
+    {label:"AOPB",data:crops.map(c=>aopbMap[c]||0),backgroundColor:"#D9A441",borderRadius:5},
+    {label:"Achieved POG",data:crops.map(c=>cropMap[c]||0),backgroundColor:"#2E8B57",borderRadius:5}
+  ],{scales:{y:{beginAtZero:true}}});
+}
+
+async function loadMyPOG(){
+  if(!tmProfile) return;
+  const res=await api({action:"get_pog",tmName:tmProfile.name,season:tmProfile.season});
+  if(!res?.ok) return;
+  const rows=res.rows.sort((a,b)=>new Date(b.Timestamp)-new Date(a.Timestamp)).slice(0,20);
+  $("myPOGList").innerHTML=rows.length?`<div class="table-wrap"><table>
+    <tr><th>Week</th><th>Crop</th><th>Hybrid</th><th>Cumulative</th><th>Change</th><th>Status</th></tr>
+    ${rows.map(r=>{
+      const chg=parseFloat(r.WeekChange)||0;
+      return`<tr class="${chg<0?'minus-row':''}">
+        <td>${r.WeekLabel||""}</td><td>${r.Crop}</td><td>${r.Hybrid}</td>
+        <td><b>${fmtN(r.CumulativePOG)}</b></td>
+        <td class="${chg>=0?'plus-val':'minus-val'}">${chg>=0?"▲ +":"▼ "}${fmtN(Math.abs(chg))}</td>
+        <td><span class="badge b-${(r.Status||"pending").toLowerCase()}">${r.Status||"Pending"}</span></td>
+      </tr>`;
+    }).join("")}
+  </table></div>`:'<div class="empty"><div class="eicon">📦</div>No entries yet</div>';
+}
+
+/* ====== RBM ====== */
+function setupRBMSeasonFilter(){
+  const bar=$("rbmSeasonFilter");
+  const seasons=["ALL","Kharif 25-26","Rabi 25-26","Kharif 26-27","Rabi 26-27"];
+  bar.innerHTML=seasons.map(s=>`<div class="chip ${s===rbmSeasonFilter?'active':''}" onclick="setRBMSeason('${s}')">${s==="ALL"?"All Seasons":s}</div>`).join("");
+}
+function setRBMSeason(s){ rbmSeasonFilter=s; setupRBMSeasonFilter(); loadRBM(); }
+
+async function loadRBM(){
+  const zone=$("r_zone").value, region=$("r_region").value;
+  const params={action:"get_pog"};
+  if(zone) params.zone=zone;
+  if(region) params.region=region;
+  if(rbmSeasonFilter!=="ALL") params.season=rbmSeasonFilter;
+  const res=await api(params);
+  if(!res?.ok) return;
+  const all=res.rows;
+  const pend=all.filter(r=>r.Status==="Pending");
+  const appr=all.filter(r=>r.Status==="Approved");
+  const rev=all.filter(r=>r.Status==="Reverted");
+  const minus=all.filter(r=>(parseFloat(r.WeekChange)||0)<0);
+  $("rs_pend").textContent=pend.length;
+  $("rs_appr").textContent=appr.length;
+  $("rs_minus").textContent=minus.length;
+  $("rs_rev").textContent=rev.length;
+  // Charts
+  const cropMap={};
+  appr.forEach(r=>{const c=r.Crop||"Other";cropMap[c]=(cropMap[c]||0)+(parseFloat(r.CumulativePOG)||0);});
+  mkChart("rc_crop","doughnut",Object.keys(cropMap),[{data:Object.values(cropMap),backgroundColor:CHART_COLORS}]);
+  const tmMap={};
+  appr.forEach(r=>{const t=r.TMName||"Unk";tmMap[t]=(tmMap[t]||0)+(parseFloat(r.CumulativePOG)||0);});
+  const tmKeys=Object.keys(tmMap).sort((a,b)=>tmMap[b]-tmMap[a]).slice(0,8);
+  mkChart("rc_tm","bar",tmKeys,[{label:"POG",data:tmKeys.map(t=>tmMap[t]),backgroundColor:"#2E5FA3",borderRadius:5}],{scales:{y:{beginAtZero:true}},plugins:{legend:{display:false}}});
+  // Pending
+  $("rbmPending").innerHTML=pend.length?pend.map(r=>rbmCard(r)).join(""):'<div class="card empty"><div class="eicon">✅</div>All clear — no pending approvals</div>';
+  // Approved table
+  $("rbmApproved").innerHTML=appr.length?`<div class="table-wrap"><table>
+    <tr><th>TM</th><th>Zone</th><th>Territory</th><th>Crop</th><th>Hybrid</th><th>Week</th><th>Cumulative</th><th>Change</th></tr>
+    ${appr.slice().reverse().slice(0,30).map(r=>{
+      const chg=parseFloat(r.WeekChange)||0;
+      return`<tr class="${chg<0?'minus-row':''}"><td>${r.TMName}</td><td>${r.Zone}</td><td>${r.Territory}</td><td>${r.Crop}</td><td>${r.Hybrid}</td><td>${r.WeekLabel}</td><td><b>${fmtN(r.CumulativePOG)}</b></td><td class="${chg>=0?'plus-val':'minus-val'}">${chg>=0?"▲ +":"▼ "}${fmtN(Math.abs(chg))}</td></tr>`;
+    }).join("")}
+  </table></div>`:'<div class="empty"><div class="eicon">📭</div>No approved entries yet</div>';
+}
+
+function rbmCard(r){
+  const chg=parseFloat(r.WeekChange)||0;
+  const isMinus=chg<0;
+  return`<div class="card" style="border-left:4px solid ${isMinus?'var(--danger)':'var(--wheat)'};">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;">
+      <div>
+        <div style="font-weight:800;font-size:14px;">${r.TMName} — ${r.Territory}</div>
+        <div style="font-size:12px;color:var(--gray);">${r.Zone} · ${r.Region} · Season: ${r.Season}</div>
+        <div style="font-size:12px;color:var(--gray);">${r.Crop} · ${r.Hybrid} · ${r.WeekLabel}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:22px;font-weight:800;">${fmtN(r.CumulativePOG)}</div>
+        <div class="${chg>=0?'plus-val':'minus-val'}" style="font-size:13px;">${chg>=0?"▲ +":"▼ "}${fmtN(Math.abs(chg))}</div>
+      </div>
+    </div>
+    ${isMinus?`<div class="danger-box" style="margin:0 0 10px;padding:8px 12px;">⚠️ POG decreased from last week! Review before approving.</div>`:""}
+    <div style="display:flex;gap:8px;">
+      <button class="btn-sm" style="background:var(--green);flex:1;" onclick="doApprove('${r.RowID}')">✅ Approve</button>
+      <button class="btn-sm" style="background:var(--danger);flex:1;" onclick="doRevert('${r.RowID}')">↩️ Revert</button>
+    </div>
+  </div>`;
+}
+async function doApprove(rowID){
+  const res=await api({action:"approve",rowID});
+  if(res?.ok){ showToast("✅ Approved!"); loadRBM(); } else showToast(res?.error,"err");
+}
+async function doRevert(rowID){
+  const note=prompt("Reason for revert (optional):") || "";
+  const res=await api({action:"revert",rowID,note});
+  if(res?.ok){ showToast("↩️ Reverted to TM"); loadRBM(); } else showToast(res?.error,"err");
+}
+
+/* ====== ZBM ====== */
+async function loadZBM(){
+  const sbu=$("z_sbu").value, zone=$("z_zone").value, season=$("z_season").value;
+  const params={action:"get_pog",status:"Approved"};
+  if(sbu) params.sbu=sbu; if(zone) params.zone=zone; if(season) params.season=season;
+  const [pogRes,aRes,yefRes]=await Promise.all([api(params),api({action:"get_aopb"}),api({action:"get_initial_yef"})]);
+  if(!pogRes?.ok) return;
+  const rows=pogRes.rows;
+  const aopbRows=aRes?.rows||[], yefRows=yefRes?.rows||[];
+  const totalPOG=rows.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
+  const totalAOPB=aopbRows.filter(a=>(!zone||a.Zone===zone)&&(!season||a.Season===season)).reduce((s,a)=>s+(parseFloat(a.AOPB)||0),0);
+  const pct=totalAOPB>0?Math.round(totalPOG/totalAOPB*100):0;
+  const minus=rows.filter(r=>(parseFloat(r.WeekChange)||0)<0).length;
+  $("zs_pog").textContent=fmtN(totalPOG); $("zs_aopb").textContent=fmtN(totalAOPB);
+  $("zs_pct").textContent=pct+"%"; $("zs_minus").textContent=minus;
+  // Zone chart
+  const zMap={};
+  rows.forEach(r=>{const z=r.Zone||"Unk";zMap[z]=(zMap[z]||0)+(parseFloat(r.CumulativePOG)||0);});
+  mkChart("zc_zone","bar",Object.keys(zMap),[{label:"POG",data:Object.values(zMap),backgroundColor:CHART_COLORS,borderRadius:5}],{scales:{y:{beginAtZero:true}},plugins:{legend:{display:false}}});
+  // Crop POG vs AOPB
+  const cPOG={},cAOPB={};
+  rows.forEach(r=>{const c=r.Crop||"Unk";cPOG[c]=(cPOG[c]||0)+(parseFloat(r.CumulativePOG)||0);});
+  aopbRows.forEach(a=>{const c=a.Crop||"Unk";cAOPB[c]=(cAOPB[c]||0)+(parseFloat(a.AOPB)||0);});
+  const crops=[...new Set([...Object.keys(cPOG),...Object.keys(cAOPB)])];
+  mkChart("zc_crop","bar",crops,[
+    {label:"AOPB",data:crops.map(c=>cAOPB[c]||0),backgroundColor:"#D9A441",borderRadius:5},
+    {label:"POG",data:crops.map(c=>cPOG[c]||0),backgroundColor:"#2E8B57",borderRadius:5}
+  ],{scales:{y:{beginAtZero:true}}});
+  // YEF & Season Progress table
+  const cropYEF={};
+  rows.forEach(r=>{
+    const c=r.Crop||"Unk";
+    if(!cropYEF[c]) cropYEF[c]={pog:0,curYEF:0,initYEF:0,seaProg:[]};
+    cropYEF[c].pog+=(parseFloat(r.CumulativePOG)||0);
+    cropYEF[c].curYEF+=(parseFloat(r.CurrentYEF)||0);
+    if(r.SeasonProgress) cropYEF[c].seaProg.push(parseFloat(r.SeasonProgress)||0);
+  });
+  yefRows.forEach(y=>{const c=y.Crop||"Unk";if(!cropYEF[c])cropYEF[c]={pog:0,curYEF:0,initYEF:0,seaProg:[]};cropYEF[c].initYEF+=(parseFloat(y.InitialYEF)||0);});
+  $("zYEFTable").innerHTML=`<div class="table-wrap"><table>
+    <tr><th>Crop</th><th>POG (Approved)</th><th>Initial YEF</th><th>Current YEF</th><th>YEF Change</th><th>Avg Season Progress</th></tr>
+    ${Object.entries(cropYEF).map(([c,d])=>{
+      const yefDiff=d.curYEF-d.initYEF;
+      const avgProg=d.seaProg.length?Math.round(d.seaProg.reduce((s,v)=>s+v,0)/d.seaProg.length):0;
+      return`<tr><td><b>${c}</b></td><td>${fmtN(d.pog)}</td><td>${fmtN(d.initYEF)}</td><td>${fmtN(d.curYEF)}</td>
+        <td class="${yefDiff>=0?'plus-val':'minus-val'}">${yefDiff>=0?"+":""}${fmtN(yefDiff)}</td>
+        <td>${avgProg}%</td></tr>`;
+    }).join("")}
+  </table></div>`;
+  // Competition table
+  const compMap={};
+  rows.forEach(r=>{
+    const c=r.Crop||"Unk";
+    if(!compMap[c]) compMap[c]={Bayer:0,Corteva:0,Syngenta:0,Advanta:0,Others:0};
+    COMP_KEYS.forEach(k=>{ compMap[c][k]+=(parseFloat(r["Comp"+k])||0); });
+  });
+  $("zCompTable").innerHTML=`<div class="table-wrap"><table>
+    <tr><th>Crop</th>${COMP_KEYS.map(k=>`<th>${k}</th>`).join("")}<th>Total Comp</th></tr>
+    ${Object.entries(compMap).map(([c,d])=>{
+      const tot=Object.values(d).reduce((s,v)=>s+v,0);
+      return`<tr><td><b>${c}</b></td>${COMP_KEYS.map(k=>`<td>${fmtN(d[k])}</td>`).join("")}<td><b>${fmtN(tot)}</b></td></tr>`;
+    }).join("")}
+  </table></div>`;
+  // TM table
+  const tmMap={};
+  rows.forEach(r=>{const t=r.TMName||"Unk";if(!tmMap[t])tmMap[t]={pog:0,zone:r.Zone,terr:r.Territory,minus:0};tmMap[t].pog+=(parseFloat(r.CumulativePOG)||0);if((parseFloat(r.WeekChange)||0)<0)tmMap[t].minus++;});
+  $("zTMTable").innerHTML=`<div class="table-wrap"><table>
+    <tr><th>TM</th><th>Zone</th><th>Territory</th><th>Total POG</th><th>⚠️ Minus</th></tr>
+    ${Object.entries(tmMap).sort((a,b)=>b[1].pog-a[1].pog).map(([t,d])=>`<tr class="${d.minus>0?'minus-row':''}"><td><b>${t}</b></td><td>${d.zone}</td><td>${d.terr}</td><td>${fmtN(d.pog)}</td><td class="${d.minus>0?'minus-val':'plus-val'}">${d.minus}</td></tr>`).join("")}
+  </table></div>`;
+}
+
+/* ====== CEO ====== */
+async function loadCEO(){
+  const season=$("c_season").value, crop=$("c_crop").value, sbu=$("c_sbu").value;
+  const params={action:"get_pog",status:"Approved"};
+  if(season) params.season=season; if(crop) params.crop=crop; if(sbu) params.sbu=sbu;
+  const [pogRes,aRes,yefRes]=await Promise.all([api(params),api({action:"get_aopb"}),api({action:"get_initial_yef"})]);
+  if(!pogRes?.ok) return;
+  const rows=pogRes.rows;
+  const aopbRows=aRes?.rows||[], yefRows=yefRes?.rows||[];
+  const totalPOG=rows.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
+  const totalAOPB=aopbRows.reduce((s,a)=>s+(parseFloat(a.AOPB)||0),0);
+  const pct=totalAOPB>0?Math.round(totalPOG/totalAOPB*100):0;
+  const minus=rows.filter(r=>(parseFloat(r.WeekChange)||0)<0).length;
+  $("cs_pog").textContent=fmtN(totalPOG); $("cs_aopb").textContent=fmtN(totalAOPB);
+  $("cs_pct").textContent=pct+"%"; $("cs_minus").textContent=minus;
+  // SBU chart
+  const sbuMap={};
+  rows.forEach(r=>{const s=r.SBU||"Unk";sbuMap[s]=(sbuMap[s]||0)+(parseFloat(r.CumulativePOG)||0);});
+  mkChart("cc_sbu","doughnut",Object.keys(sbuMap),[{data:Object.values(sbuMap),backgroundColor:CHART_COLORS}]);
+  // AOPB vs POG crop chart
+  const cPOG={},cAOPB={};
+  rows.forEach(r=>{const c=r.Crop||"Unk";cPOG[c]=(cPOG[c]||0)+(parseFloat(r.CumulativePOG)||0);});
+  aopbRows.forEach(a=>{const c=a.Crop||"Unk";cAOPB[c]=(cAOPB[c]||0)+(parseFloat(a.AOPB)||0);});
+  const crops=[...new Set([...Object.keys(cPOG),...Object.keys(cAOPB)])];
+  mkChart("cc_crop","bar",crops,[
+    {label:"AOPB",data:crops.map(c=>cAOPB[c]||0),backgroundColor:"#D9A441",borderRadius:5},
+    {label:"POG",data:crops.map(c=>cPOG[c]||0),backgroundColor:"#2E8B57",borderRadius:5}
+  ],{scales:{y:{beginAtZero:true}}});
+  // Competition doughnut
+  const compTot={};
+  COMP_KEYS.forEach(k=>compTot[k]=0);
+  rows.forEach(r=>COMP_KEYS.forEach(k=>{ compTot[k]+=(parseFloat(r["Comp"+k])||0); }));
+  mkChart("cc_comp","doughnut",COMP_KEYS,[{data:Object.values(compTot),backgroundColor:CHART_COLORS}]);
+  // Season Progress by crop
+  const spMap={};
+  rows.forEach(r=>{ const c=r.Crop||"Unk"; if(!spMap[c]) spMap[c]=[]; if(r.SeasonProgress) spMap[c].push(parseFloat(r.SeasonProgress)||0); });
+  const spCrops=Object.keys(spMap);
+  mkChart("cc_season","bar",spCrops,[{label:"Avg Season Progress %",data:spCrops.map(c=>spMap[c].length?Math.round(spMap[c].reduce((s,v)=>s+v,0)/spMap[c].length):0),backgroundColor:"#2E5FA3",borderRadius:5}],{scales:{y:{beginAtZero:true,max:100}},plugins:{legend:{display:false}}});
+  // YEF Table
+  const cropYEF={};
+  rows.forEach(r=>{const c=r.Crop||"Unk";if(!cropYEF[c])cropYEF[c]={pog:0,curYEF:0,initYEF:0};cropYEF[c].pog+=(parseFloat(r.CumulativePOG)||0);cropYEF[c].curYEF+=(parseFloat(r.CurrentYEF)||0);});
+  yefRows.forEach(y=>{const c=y.Crop||"Unk";if(!cropYEF[c])cropYEF[c]={pog:0,curYEF:0,initYEF:0};cropYEF[c].initYEF+=(parseFloat(y.InitialYEF)||0);});
+  $("cYEFTable").innerHTML=`<div class="table-wrap"><table>
+    <tr><th>Crop</th><th>AOPB</th><th>Initial YEF</th><th>Current YEF</th><th>POG Achieved</th><th>Gap (Current YEF-POG)</th></tr>
+    ${Object.entries(cropYEF).map(([c,d])=>{
+      const gap=d.curYEF-d.pog;
+      return`<tr><td><b>${c}</b></td><td>${fmtN(cAOPB[c]||0)}</td><td>${fmtN(d.initYEF)}</td><td>${fmtN(d.curYEF)}</td><td>${fmtN(d.pog)}</td>
+        <td class="${gap>=0?'plus-val':'minus-val'}">${gap>=0?"+":""}${fmtN(gap)}</td></tr>`;
+    }).join("")}
+  </table></div>`;
+  // Zone table
+  const zMap={};
+  rows.forEach(r=>{const z=r.Zone||"Unk";if(!zMap[z])zMap[z]={pog:0,sbu:r.SBU||"",tms:new Set(),minus:0};zMap[z].pog+=(parseFloat(r.CumulativePOG)||0);zMap[z].tms.add(r.TMName);if((parseFloat(r.WeekChange)||0)<0)zMap[z].minus++;});
+  $("cZoneTable").innerHTML=`<div class="table-wrap"><table>
+    <tr><th>Zone</th><th>SBU</th><th>Total POG</th><th>Active TMs</th><th>⚠️ Minus</th></tr>
+    ${Object.entries(zMap).sort().map(([z,d])=>`<tr class="${d.minus>0?'minus-row':''}"><td><b>${z}</b></td><td>${d.sbu}</td><td>${fmtN(d.pog)}</td><td>${d.tms.size}</td><td class="${d.minus>0?'minus-val':'plus-val'}">${d.minus}</td></tr>`).join("")}
+  </table></div>`;
+  // All table
+  $("cAllTable").innerHTML=rows.length?`<div class="table-wrap"><table>
+    <tr><th>Date</th><th>TM</th><th>Zone</th><th>Territory</th><th>Season</th><th>Crop</th><th>Hybrid</th><th>Week</th><th>Cumulative POG</th><th>Change</th><th>Season Progress%</th><th>Current YEF</th></tr>
+    ${rows.slice().reverse().slice(0,50).map(r=>{
+      const chg=parseFloat(r.WeekChange)||0;
+      return`<tr class="${chg<0?'minus-row':''}">
+        <td>${new Date(r.Timestamp).toLocaleDateString("en-IN")}</td>
+        <td>${r.TMName}</td><td>${r.Zone}</td><td>${r.Territory}</td><td>${r.Season}</td>
+        <td>${r.Crop}</td><td>${r.Hybrid}</td><td>${r.WeekLabel}</td>
+        <td><b>${fmtN(r.CumulativePOG)}</b></td>
+        <td class="${chg>=0?'plus-val':'minus-val'}">${chg>=0?"▲ +":"▼ "}${fmtN(Math.abs(chg))}</td>
+        <td>${r.SeasonProgress||"—"}%</td><td>${fmtN(r.CurrentYEF)}</td>
+      </tr>`;
+    }).join("")}
+  </table></div>`:'<div class="empty"><div class="eicon">📭</div>No approved data yet</div>';
+}
+
+function exportCEO(){
+  const table=$("cAllTable").querySelector("table");
+  if(!table){ showToast("No data to export","err"); return; }
+  const rows=Array.from(table.rows).map(r=>Array.from(r.cells).map(c=>'"'+c.textContent.trim().replace(/"/g,'""')+'"').join(",")).join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([rows],{type:"text/csv"}));
+  a.download="Crystal_POG_"+new Date().toISOString().slice(0,10)+".csv";
+  a.click();
+}
+
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
