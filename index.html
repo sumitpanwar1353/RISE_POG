@@ -234,7 +234,7 @@ td{padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap;}
       <div class="card">
         <div class="row2">
           <div><label>Crop <span class="req">*</span></label>
-            <select id="p_crop" onchange="onCropChange()">
+            <select id="p_crop">
               <option value="">Select Crop</option>
               <option>Maize</option><option>Paddy</option><option>Cotton</option>
               <option>Pearl Millet</option><option>Mustard</option><option>Wheat</option>
@@ -665,8 +665,15 @@ async function loadTMDash(){
 /* ====== POG ENTRY ====== */
 $("p_crop").addEventListener("change",()=>{
   const crop=$("p_crop").value;
-  $("cropFields").style.display=crop?"block":"none";
-  if(crop){loadLastData();} else $("bulkBtn").style.display="none";
+  if(crop){
+    $("cropFields").style.display="block";
+    $("bulkBtn").style.display="block";
+    loadLastData();
+  } else {
+    $("cropFields").style.display="none";
+    $("bulkBtn").style.display="none";
+    $("weeklyBody").innerHTML="";
+  }
 });
 $("p_yef")?.addEventListener("input",()=>{
   const cur=parseFloat($("p_yef").value)||0;
