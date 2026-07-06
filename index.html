@@ -666,12 +666,10 @@ async function loadTMDash(){
 $("p_crop").addEventListener("change",()=>{
   const crop=$("p_crop").value;
   if(crop){
-    $("cropFields").style.display="block";
-    $("bulkBtn").style.display="block";
+    $("entryBody").style.display="block";
     loadLastData();
   } else {
-    $("cropFields").style.display="none";
-    $("bulkBtn").style.display="none";
+    $("entryBody").style.display="none";
     $("weeklyBody").innerHTML="";
   }
 });
@@ -690,7 +688,6 @@ async function loadLastData(){
   $("p_date").min=today;
   if(!$("p_date").value) $("p_date").value=today;
   $("weeklyBody").innerHTML='<tr><td colspan="7" style="text-align:center;padding:12px;"><span class="spin"></span> Loading...</td></tr>';
-  $("bulkBtn").style.display="block";
   const [pogRes,aopbRes,yefRes]=await Promise.all([
     api({action:"get_last_pog_bulk",tmName:tmP.name,zone:tmP.zone,region:tmP.region,territory:tmP.territory,season:tmP.season,crop}),
     fetchAOPB(),
