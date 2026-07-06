@@ -216,9 +216,10 @@ td{padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap;}
       <div class="card">
         <div class="stitle" style="margin-top:0;">AOPB vs Placement vs POG (Crop-wise)</div>
         <div class="cbox"><canvas id="tc_main"></canvas></div>
+        <div id="tmAOPBTable"></div>
       </div>
       <div class="card">
-        <div class="stitle" style="margin-top:0;">YEF Trend (Week-wise)</div>
+        <div class="stitle" style="margin-top:0;">Current YEF by Crop</div>
         <div class="cbox"><canvas id="tc_yef"></canvas></div>
       </div>
     </div>
@@ -433,7 +434,7 @@ td{padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap;}
   </div>
   <div class="cgrid">
     <div class="card"><div class="stitle" style="margin-top:0;">POG by SBU</div><div class="cbox"><canvas id="cc_sbu"></canvas></div></div>
-    <div class="card"><div class="stitle" style="margin-top:0;">AOPB vs POG by Crop</div><div class="cbox"><canvas id="cc_crop"></canvas></div></div>
+    <div class="card"><div class="stitle" style="margin-top:0;">AOPB vs Placement vs POG by Crop</div><div class="cbox"><canvas id="cc_crop"></canvas></div><div id="ceoAOPBTable"></div></div>
   </div>
   <div class="cgrid">
     <div class="card"><div class="stitle" style="margin-top:0;">Competition Market Share</div><div class="cbox"><canvas id="cc_comp"></canvas></div></div>
@@ -622,43 +623,171 @@ function saveProfile(){
   showTMMain();toast("✅ Profile saved!");
 }
 
+
+/* ====== SHARED CALC UTILITIES ====== */
+
+// Get latest POG per TM+Crop (not sum) — latest week's cumulative
+function getLatestPerTMCrop(rows){
+  const map={};
+  rows.forEach(r=>{
+    const k=`${r.TMName}|${r.Crop}|${r.Hybrid}|${r.Territory}`;
+    if(!map[k]||new Date(r.Timestamp)>new Date(map[k].Timestamp)) map[k]=r;
+  });
+  return Object.values(map);
+}
+
+// Get latest Placement per TM+Crop+Hybrid
+function getLatestPlacement(placRows){
+  const map={};
+  placRows.forEach(r=>{
+    const k=`${r.TMName}|${r.Crop}|${r.Hybrid}|${r.Territory}`;
+    if(!map[k]||new Date(r.Timestamp)>new Date(map[k].Timestamp)) map[k]=r;
+  });
+  return Object.values(map);
+}
+
+// Get latest YEF per TM+Crop (not sum) with YEF change
+function getLatestYEF(rows){
+  const map={};
+  rows.filter(r=>parseFloat(r.CurrentYEF)>0).forEach(r=>{
+    const k=`${r.TMName}|${r.Crop}|${r.Territory}`;
+    if(!map[k]||new Date(r.Timestamp)>new Date(map[k].Timestamp)) map[k]=r;
+  });
+  // Add yefChange
+  Object.values(map).forEach(r=>{
+    const prevYEF=parseFloat(r.PrevYEF)||0;
+    const curYEF=parseFloat(r.CurrentYEF)||0;
+    r._yefChange=prevYEF>0?curYEF-prevYEF:0;
+  });
+  return map;
+}
+
+// Get previous YEF per TM+Crop (second latest)
+function getPrevYEF(rows){
+  const all={};
+  rows.filter(r=>parseFloat(r.CurrentYEF)>0).forEach(r=>{
+    const k=`${r.TMName}|${r.Crop}|${r.Territory}`;
+    if(!all[k]) all[k]=[];
+    all[k].push(r);
+  });
+  const prev={};
+  Object.entries(all).forEach(([k,arr])=>{
+    const sorted=arr.sort((a,b)=>new Date(b.Timestamp)-new Date(a.Timestamp));
+    if(sorted.length>=2) prev[k]=sorted[1];
+  });
+  return prev;
+}
+
+// Average season progress (not sum)
+function avgSeasonProgress(rows){
+  // Group by TMName+Territory+Crop — get latest per TM
+  const latestPerTM={};
+  rows.filter(r=>parseFloat(r.SeasonProgress)>0).forEach(r=>{
+    const k=`${r.TMName}|${r.Territory}|${r.Crop}`;
+    if(!latestPerTM[k]||new Date(r.Timestamp)>new Date(latestPerTM[k].Timestamp)) latestPerTM[k]=r;
+  });
+  const vals=Object.values(latestPerTM).map(r=>parseFloat(r.SeasonProgress)||0);
+  return vals.length?Math.round(vals.reduce((s,v)=>s+v,0)/vals.length):0;
+}
+
+// Arrow indicator
+function arrow(cur,prev){
+  if(!prev&&prev!==0) return "";
+  const diff=cur-prev;
+  if(diff>0) return `<span class="pval" style="font-size:11px;">▲${fN(Math.abs(diff))}</span>`;
+  if(diff<0) return `<span class="nval" style="font-size:11px;">▼${fN(Math.abs(diff))}</span>`;
+  return `<span style="color:var(--gray);font-size:11px;">—</span>`;
+}
+
+// Aggregate AOPB vs Placement vs POG by crop
+function aggBycrOp(latestPOG, latestPlc, aopbRows){
+  const crops={};
+  aopbRows.forEach(r=>{
+    const c=r.Crop||"?";
+    if(!crops[c])crops[c]={aopb:0,plc:0,pog:0};
+    crops[c].aopb+=(parseFloat(r.AOPB)||0);
+  });
+  latestPlc.forEach(r=>{
+    const c=r.Crop||"?";
+    if(!crops[c])crops[c]={aopb:0,plc:0,pog:0};
+    crops[c].plc+=(parseFloat(r.Placement)||0);
+  });
+  latestPOG.forEach(r=>{
+    const c=r.Crop||"?";
+    if(!crops[c])crops[c]={aopb:0,plc:0,pog:0};
+    crops[c].pog+=(parseFloat(r.CumulativePOG)||0);
+  });
+  return crops;
+}
+
+// Render AOPB vs Plc vs POG table
+function renderAOPBPlcPOG(crops, chartId, tableId){
+  const labels=Object.keys(crops);
+  if(!labels.length) return;
+  mkChart(chartId,"bar",labels,[
+    {label:"AOPB",data:labels.map(c=>crops[c].aopb),backgroundColor:"#D9A441",borderRadius:4},
+    {label:"Placement",data:labels.map(c=>crops[c].plc),backgroundColor:"#2E5FA3",borderRadius:4},
+    {label:"POG",data:labels.map(c=>crops[c].pog),backgroundColor:"#2E8B57",borderRadius:4}
+  ],{scales:{y:{beginAtZero:true}}});
+  if(tableId){
+    $(tableId).innerHTML=`<div class="tw" style="margin-top:10px;"><table>
+      <tr><th>Crop</th><th>AOPB</th><th>Placement</th><th>Pl%</th><th>POG</th><th>POG%</th></tr>
+      ${labels.map(c=>{
+        const d=crops[c];
+        const plPct=d.aopb>0?Math.round(d.plc/d.aopb*100):0;
+        const pogPct=d.aopb>0?Math.round(d.pog/d.aopb*100):0;
+        return`<tr>
+          <td><b>${c}</b></td><td>${fN(d.aopb)}</td>
+          <td>${fN(d.plc)}</td><td><span class="bdg ${plPct>=80?'b-ap':plPct>=50?'b-pe':'b-re'}">${plPct}%</span></td>
+          <td>${fN(d.pog)}</td><td><span class="bdg ${pogPct>=80?'b-ap':pogPct>=50?'b-pe':'b-re'}">${pogPct}%</span></td>
+        </tr>`;
+      }).join("")}
+    </table></div>`;
+  }
+}
+
 /* ====== TM DASHBOARD ====== */
 async function loadTMDash(){
   if(!tmP) return;
-  const [pogRes,allAOPB]=await Promise.all([
+  const [pogRes,allAOPB,placRes]=await Promise.all([
     api({action:"get_pog",tmName:tmP.name,zone:tmP.zone,territory:tmP.territory,season:tmP.season}),
-    fetchAOPB()
+    fetchAOPB(),
+    api({action:"get_placement",tmName:tmP.name,zone:tmP.zone,territory:tmP.territory,season:tmP.season})
   ]);
   const myRows=pogRes?.ok?pogRes.rows:[];
+  const myPlcRows=placRes?.ok?placRes.rows:[];
   const myAOPB=allAOPB.filter(r=>(r.TMName||"").toUpperCase()===tmP.name.toUpperCase()&&r.Territory===tmP.territory&&r.Season===tmP.season);
-  const appr=myRows.filter(r=>r.Status==="Approved");
-  const totalPOG=appr.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
+
+  // Latest per hybrid (not sum)
+  const latestPOG=getLatestPerTMCrop(myRows.filter(r=>r.Status==="Approved"));
+  const latestPlc=getLatestPlacement(myPlcRows);
+
+  // Stats
+  const totalPOG=latestPOG.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
   const totalAOPB=myAOPB.reduce((s,a)=>s+(parseFloat(a.AOPB)||0),0);
+  const totalPlc=latestPlc.reduce((s,r)=>s+(parseFloat(r.Placement)||0),0);
   const pct=totalAOPB>0?Math.round(totalPOG/totalAOPB*100):0;
   const rev=myRows.filter(r=>r.Status==="Reverted").length;
   $("td_pog").textContent=fN(totalPOG);$("td_aopb").textContent=fN(totalAOPB);
   $("td_pct").textContent=pct+"%";$("td_rev").textContent=rev;
-  if(myAOPB.length>0||appr.length>0){
+
+  if(myAOPB.length>0||latestPOG.length>0){
     $("tmCharts").style.display="block";
-    const cAOPB={},cPOG={};
-    myAOPB.forEach(r=>{const c=r.Crop||"?";cAOPB[c]=(cAOPB[c]||0)+(parseFloat(r.AOPB)||0);});
-    appr.forEach(r=>{const c=r.Crop||"?";cPOG[c]=(cPOG[c]||0)+(parseFloat(r.CumulativePOG)||0);});
-    const crops=[...new Set([...Object.keys(cAOPB),...Object.keys(cPOG)])];
-    mkChart("tc_main","bar",crops,[
-      {label:"AOPB",data:crops.map(c=>cAOPB[c]||0),backgroundColor:"#D9A441",borderRadius:4},
-      {label:"POG",data:crops.map(c=>cPOG[c]||0),backgroundColor:"#2E8B57",borderRadius:4}
-    ],{scales:{y:{beginAtZero:true}}});
-    const yefByCrop={};
-    myRows.filter(r=>parseFloat(r.CurrentYEF)>0).forEach(r=>{
-      const c=r.Crop||"?";if(!yefByCrop[c])yefByCrop[c]=[];
-      yefByCrop[c].push({label:r.WeekLabel||"",yef:parseFloat(r.CurrentYEF)||0});
-    });
-    const allWeeks=[...new Set(myRows.map(r=>r.WeekLabel).filter(Boolean))].slice(-8);
-    const yefDS=Object.entries(yefByCrop).map(([crop,pts],i)=>{
-      const pm={};pts.forEach(p=>pm[p.label]=p.yef);
-      return{label:crop,data:allWeeks.map(w=>pm[w]||null),borderColor:COLORS[i%COLORS.length],backgroundColor:"transparent",tension:0.3,pointRadius:4,spanGaps:true};
-    });
-    if(yefDS.length>0) mkChart("tc_yef","line",allWeeks,yefDS,{scales:{y:{beginAtZero:false}}});
+    // AOPB vs Placement vs POG chart
+    const crops=aggBycrOp(latestPOG,latestPlc,myAOPB);
+    renderAOPBPlcPOG(crops,"tc_main","tmAOPBTable");
+    // YEF trend — latest per crop + arrow
+    const latestYEF=getLatestYEF(myRows);
+    const prevYEF=getPrevYEF(myRows);
+    const yefRows=Object.values(latestYEF);
+    if(yefRows.length>0){
+      const yefLabels=yefRows.map(r=>r.Crop);
+      const yefVals=yefRows.map(r=>parseFloat(r.CurrentYEF)||0);
+      mkChart("tc_yef","bar",yefLabels,[{label:"Current YEF",data:yefVals,backgroundColor:"#6C4B7A",borderRadius:4}],{scales:{y:{beginAtZero:true}},plugins:{legend:{display:false}}});
+    }
+    // Avg season progress
+    const avgSP=avgSeasonProgress(myRows);
+    if($("tmSeasonPct")) $("tmSeasonPct").textContent=avgSP+"%";
   }
 }
 
@@ -799,7 +928,7 @@ async function submitWeekly(){
         zone:tmP.zone,region:tmP.region,territory:tmP.territory,season:tmP.season,sbu:tmP.sbu,
         crop,hybrid:h,weekDate:wd,weekLabel:wl,
         cumulativePOG:cv,prevCumulativePOG:last,weekChange:cv-last,
-        seasonProgress:sp,currentYEF:yef,
+        seasonProgress:sp,currentYEF:yef,prevYEF:lastYEF,
         isFirstYEF:lastYEF===0?"true":"false",
         compPlc_bayer:$("cp_bayer")?.value||0,compPOG_bayer:$("cg_bayer")?.value||0,
         compPlc_corteva:$("cp_corteva")?.value||0,compPOG_corteva:$("cg_corteva")?.value||0,
@@ -857,7 +986,9 @@ function filterMyData(){
       <td>${fN(r.Placement)||"—"}</td><td><b>${fN(r.CumulativePOG)}</b></td>
       <td class="${chg>=0?"pval":"nval"}">${chg>=0?"▲":"▼"}${fN(Math.abs(chg))}</td>
       <td>${fN(r.CurrentYEF)||"—"}</td><td>${r.SeasonProgress||"—"}%</td>
-      <td><span class="bdg b-${(r.Status||"pe").substring(0,2).toLowerCase()}">${r.Status||"Pending"}</span></td>
+      <td><span class="bdg b-${(r.Status||"pe").substring(0,2).toLowerCase()}">${r.Status||"Pending"}</span>
+        ${r.Status==="Reverted"?`<div style="font-size:10px;color:var(--dd);margin-top:3px;">↩️ ${r.RBMNote||"Reverted"}</div>`:""}
+      </td>
     </tr>`;}).join("")}
   </table></div>`
   :'<div class="card empty"><div class="ei">📭</div>No entries found</div>';
@@ -939,8 +1070,13 @@ async function loadSBUApprovals(){
 }
 function sbuCard(r){
   const chg=parseFloat(r.WeekChange)||0;
-  return`<div class="card" style="border-left:4px solid ${chg<0?"var(--dd)":"var(--wl)}"};">
-    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;">
+  const isMinus=chg<0;
+  const prevPOG=parseFloat(r.PrevCumulativePOG)||0;
+  const sp=parseFloat(r.SeasonProgress)||0;
+  const yef=parseFloat(r.CurrentYEF)||0;
+  const plc=parseFloat(r.Placement)||0;
+  return`<div class="card" style="border-left:4px solid ${isMinus?"var(--dd)":"var(--wl)"};">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
       <div>
         <div style="font-weight:800;font-size:14px;">${r.TMName} — ${r.Territory}</div>
         <div style="font-size:12px;color:var(--gray);">${r.Zone} · ${r.Region} · ${r.Season}</div>
@@ -948,10 +1084,28 @@ function sbuCard(r){
       </div>
       <div style="text-align:right;">
         <div style="font-size:20px;font-weight:800;">${fN(r.CumulativePOG)}</div>
-        <div class="${chg>=0?"pval":"nval"}">${chg>=0?"▲":"▼"}${fN(Math.abs(chg))}</div>
+        <div class="${chg>=0?"pval":"nval"}" style="font-size:13px;">${chg>=0?"▲ +":"▼ "}${fN(Math.abs(chg))}</div>
       </div>
     </div>
-    ${chg<0?`<div class="dbox" style="padding:7px 10px;margin-bottom:8px;font-size:12px;">⚠️ POG decreased — verify before approving</div>`:""}
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;font-size:12px;">
+      <div style="background:var(--bll);padding:6px 8px;border-radius:7px;">
+        <div style="color:var(--gray);font-size:10px;">PLACEMENT</div>
+        <div style="font-weight:700;">${fN(plc)}</div>
+      </div>
+      <div style="background:var(--bll);padding:6px 8px;border-radius:7px;">
+        <div style="color:var(--gray);font-size:10px;">SEASON %</div>
+        <div style="font-weight:700;">${sp}%</div>
+      </div>
+      <div style="background:var(--bll);padding:6px 8px;border-radius:7px;">
+        <div style="color:var(--gray);font-size:10px;">YEF</div>
+        <div style="font-weight:700;">${fN(yef)}</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--gray);margin-bottom:8px;">
+      Last POG: <b>${fN(prevPOG)}</b> → Current: <b>${fN(r.CumulativePOG)}</b> 
+      ${isMinus?`<span class="nval">▼ ${fN(Math.abs(chg))}</span>`:`<span class="pval">▲ +${fN(chg)}</span>`}
+    </div>
+    ${isMinus?`<div class="dbox" style="padding:7px 10px;margin-bottom:8px;font-size:12px;">⚠️ POG decreased from last week — verify before approving</div>`:""}
     <div style="display:flex;gap:8px;">
       <button class="btn-sm" style="background:var(--gl);flex:1;" onclick="doApprove('${r.RowID}')">✅ Approve</button>
       <button class="btn-sm" style="background:var(--dd);flex:1;" onclick="doRevert('${r.RowID}')">↩️ Revert</button>
@@ -1000,13 +1154,24 @@ async function loadSBUDash(){
     {label:"POG",data:crops.map(c=>cP[c]||0),backgroundColor:"#2E8B57",borderRadius:4}
   ],{scales:{y:{beginAtZero:true}}});
   // YEF table
+  // Use latest POG per TM+Hybrid (not sum)
+  const latPOG=getLatestPerTMCrop(rows);
+  const avgSP=avgSeasonProgress(rows);
+  const latYEF=getLatestYEF(rows);
+  const cropData=aggBycrOp(latPOG,[],aopbRows);
+  latPOG.forEach(r=>{const crop=r.Crop||"?";if(!cropData[crop])cropData[crop]={aopb:0,plc:0,pog:0};cropData[crop].pog+=(parseFloat(r.CumulativePOG)||0);});
   const cy={};
-  rows.forEach(r=>{const c=r.Crop||"?";if(!cy[c])cy[c]={pog:0,curYEF:0,sp:[]};cy[c].pog+=(parseFloat(r.CumulativePOG)||0);cy[c].curYEF+=(parseFloat(r.CurrentYEF)||0);if(r.SeasonProgress)cy[c].sp.push(parseFloat(r.SeasonProgress)||0);});
+  latPOG.forEach(r=>{const cr=r.Crop||"?";if(!cy[cr])cy[cr]={pog:0,curYEF:0,sp:avgSP};cy[cr].pog+=(parseFloat(r.CumulativePOG)||0);});
+  Object.values(latYEF).forEach(r=>{const cr=r.Crop||"?";if(!cy[cr])cy[cr]={pog:0,curYEF:0,sp:avgSP,yefChange:0};cy[cr].curYEF=parseFloat(r.CurrentYEF)||0;cy[cr].yefChange=r._yefChange||0;});
   $("sd_yef").innerHTML=Object.keys(cy).length?`<div class="tw"><table>
-    <tr><th>Crop</th><th>POG</th><th>Current YEF</th><th>Gap</th><th>Avg Season%</th></tr>
-    ${Object.entries(cy).map(([c,d])=>{const gap=d.curYEF-d.pog;const sp=d.sp.length?Math.round(d.sp.reduce((s,v)=>s+v,0)/d.sp.length):0;
-      return`<tr><td><b>${c}</b></td><td>${fN(d.pog)}</td><td>${fN(d.curYEF)}</td>
-        <td class="${gap>=0?"pval":"nval"}">${gap>=0?"+":""}${fN(gap)}</td><td>${sp}%</td></tr>`;
+    <tr><th>Crop</th><th>POG</th><th>Latest YEF</th><th>YEF Change</th><th>Gap (YEF-POG)</th><th>Avg Season%</th></tr>
+    ${Object.entries(cy).map(([cr,d])=>{
+      const gap=d.curYEF-d.pog;
+      const yefChg=d.yefChange||0;
+      return`<tr><td><b>${cr}</b></td><td>${fN(d.pog)}</td><td>${fN(d.curYEF)}</td>
+        <td class="${yefChg>=0?"pval":"nval"}" style="font-weight:700;">${yefChg>=0?"▲ +":"▼ "}${fN(Math.abs(yefChg))}</td>
+        <td class="${gap>=0?"pval":"nval"}">${gap>=0?"+":""}${fN(gap)}</td>
+        <td>${d.sp||avgSP}%</td></tr>`;
     }).join("")}
   </table></div>`:"<div class='empty'><div class='ei'>📭</div>No approved data yet</div>";
   // Competition table
@@ -1044,14 +1209,10 @@ async function loadCEO(){
   $("cs_pct").textContent=pct+"%";$("cs_minus").textContent=minus;
   const sm={};rows.forEach(r=>{const s=r.SBU||"?";sm[s]=(sm[s]||0)+(parseFloat(r.CumulativePOG)||0);});
   mkChart("cc_sbu","doughnut",Object.keys(sm),[{data:Object.values(sm),backgroundColor:COLORS}]);
-  const cP={},cA={};
-  rows.forEach(r=>{const c=r.Crop||"?";cP[c]=(cP[c]||0)+(parseFloat(r.CumulativePOG)||0);});
-  aopbRows.forEach(a=>{const c=a.Crop||"?";cA[c]=(cA[c]||0)+(parseFloat(a.AOPB)||0);});
-  const crops=[...new Set([...Object.keys(cP),...Object.keys(cA)])];
-  mkChart("cc_crop","bar",crops,[
-    {label:"AOPB",data:crops.map(c=>cA[c]||0),backgroundColor:"#D9A441",borderRadius:4},
-    {label:"POG",data:crops.map(c=>cP[c]||0),backgroundColor:"#2E8B57",borderRadius:4}
-  ],{scales:{y:{beginAtZero:true}}});
+  // AOPB vs POG crop chart (use ceoCropData)
+  const crops=Object.keys(ceoCropData);
+  const cA={};aopbRows.forEach(a=>{const cr=a.Crop||"?";cA[cr]=(cA[cr]||0)+(parseFloat(a.AOPB)||0);});
+  renderAOPBPlcPOG(ceoCropData,"cc_crop","ceoAOPBTable");
   const compP={},compG={};COMPS.forEach(k=>{compP[k]=0;compG[k]=0;});
   rows.forEach(r=>COMPS.forEach(k=>{compP[k]+=(parseFloat(r[`CompPlc_${k}`])||0);compG[k]+=(parseFloat(r[`CompPOG_${k}`])||0);}));
   mkChart("cc_comp","bar",COMPS,[
@@ -1061,12 +1222,21 @@ async function loadCEO(){
   const spM={};rows.forEach(r=>{const c=r.Crop||"?";if(!spM[c])spM[c]=[];if(r.SeasonProgress)spM[c].push(parseFloat(r.SeasonProgress)||0);});
   mkChart("cc_sp","bar",Object.keys(spM),[{label:"Avg Season%",data:Object.values(spM).map(a=>a.length?Math.round(a.reduce((s,v)=>s+v,0)/a.length):0),backgroundColor:"#2E5FA3",borderRadius:4}],{scales:{y:{beginAtZero:true,max:100}},plugins:{legend:{display:false}}});
   // YEF
-  const cy={};rows.forEach(r=>{const c=r.Crop||"?";if(!cy[c])cy[c]={pog:0,curYEF:0};cy[c].pog+=(parseFloat(r.CumulativePOG)||0);cy[c].curYEF+=(parseFloat(r.CurrentYEF)||0);});
+  // Latest POG + YEF per TM+Crop (not cumulative sum)
+  const ceoLatPOG=getLatestPerTMCrop(rows);
+  const ceoLatYEF=getLatestYEF(rows);
+  const ceoCropData=aggBycrOp(ceoLatPOG,[],aopbRows);
+  const cy={};
+  ceoLatPOG.forEach(r=>{const cr=r.Crop||"?";if(!cy[cr])cy[cr]={pog:0,curYEF:0};cy[cr].pog+=(parseFloat(r.CumulativePOG)||0);});
+  Object.values(ceoLatYEF).forEach(r=>{const cr=r.Crop||"?";if(!cy[cr])cy[cr]={pog:0,curYEF:0,yefChange:0};cy[cr].curYEF=parseFloat(r.CurrentYEF)||0;cy[cr].yefChange=r._yefChange||0;});
   $("c_yef").innerHTML=`<div class="tw"><table>
-    <tr><th>Crop</th><th>AOPB</th><th>Current YEF</th><th>POG Achieved</th><th>Gap</th></tr>
-    ${Object.entries(cy).map(([c,d])=>{const gap=d.curYEF-d.pog;return`<tr>
-      <td><b>${c}</b></td><td>${fN(cA[c]||0)}</td><td>${fN(d.curYEF)}</td><td>${fN(d.pog)}</td>
-      <td class="${gap>=0?"pval":"nval"}">${gap>=0?"+":""}${fN(gap)}</td></tr>`;}).join("")}
+    <tr><th>Crop</th><th>AOPB</th><th>Latest YEF</th><th>YEF Change ▲▼</th><th>POG</th><th>Gap (YEF-POG)</th></tr>
+    ${Object.entries(cy).map(([cr,d])=>{const gap=d.curYEF-d.pog;const yc=d.yefChange||0;return`<tr>
+      <td><b>${cr}</b></td><td>${fN(cA[cr]||0)}</td><td>${fN(d.curYEF)}</td>
+      <td class="${yc>=0?"pval":"nval"}" style="font-weight:700;">${yc>=0?"▲ +":"▼ "}${fN(Math.abs(yc))}</td>
+      <td>${fN(d.pog)}</td>
+      <td class="${gap>=0?"pval":"nval"}">${gap>=0?"+":""}${fN(gap)}</td>
+    </tr>`;}).join("")}
   </table></div>`;
   const zM={};rows.forEach(r=>{const z=r.Zone||"?";if(!zM[z])zM[z]={pog:0,sbu:r.SBU||"",tms:new Set(),minus:0};zM[z].pog+=(parseFloat(r.CumulativePOG)||0);zM[z].tms.add(r.TMName);if((parseFloat(r.WeekChange)||0)<0)zM[z].minus++;});
   $("c_zone").innerHTML=`<div class="tw"><table>
