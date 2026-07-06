@@ -493,43 +493,14 @@ const CH = {
 };
 const COMPS = ["Bayer","Corteva","Syngenta","Advanta","Others"];
 const COLORS = ["#2E5FA3","#2E8B57","#D9A441","#C0392B","#6C4B7A","#3E7C9E","#E67E22","#1B3A6B"];
+const CACHE_TTL = 30000;
 
 /* ====== STATE ====== */
-let role=null, pendRole=null, sbuKey=null, zoneKey=null;
-let tmP=null;
-let lockedAOPB=new Set(), lockedYEF=new Set();
-let lastPOGMap={};
-let sbuSeasonF="ALL";
-let charts={};
-// CACHE — avoid repeated API calls
-let cache={pog:null,aopb:null,yef:null,ts:0};
-const CACHE_TTL=30000; // 30 seconds — faster refresh
+let role=null, pendRole=null, sbuKey=null, zoneKey=null, tmP=null;
+let lastDataMap={}, lastYEF=0, lockedAOPB=new Set();
+let sbuSeasonF="ALL", charts={};
 let cache={pog:null,aopb:null,yef:null,ts:0,aopbTs:0,yefTs:0};
 
-async function fetchAllPOG(forceRefresh=false, extraParams={}){
-  const now=Date.now();
-  const cacheKey=JSON.stringify(extraParams);
-  if(!forceRefresh && cache.pog && cache.pogKey===cacheKey && (now-cache.ts)<CACHE_TTL) return cache.pog;
-  const params={action:"get_pog",...extraParams};
-  const res=await api(params);
-  if(res?.ok){cache.pog=res.rows;cache.ts=now;cache.pogKey=cacheKey;}
-  return cache.pog||[];
-}
-async function fetchAOPB(forceRefresh=false){
-  const now=Date.now();
-  if(!forceRefresh && cache.aopb && (now-cache.aopbTs)<CACHE_TTL) return cache.aopb;
-  const res=await api({action:"get_aopb"});
-  if(res?.ok){cache.aopb=res.rows;cache.aopbTs=now;}
-  return cache.aopb||[];
-}
-async function fetchYEF(forceRefresh=false){
-  const now=Date.now();
-  if(!forceRefresh && cache.yef && (now-cache.yefTs)<CACHE_TTL) return cache.yef;
-  const res=await api({action:"get_pog"}); // YEF is stored in POG_Data as CurrentYEF + IsFirstYEF
-  if(res?.ok){cache.yef=res.rows;cache.yefTs=now;}
-  return cache.yef||[];
-}
-function invalidateCache(){cache={pog:null,aopb:null,yef:null,ts:0,aopbTs:0,yefTs:0};}
 /* ====== UTILS ====== */
 const $=id=>document.getElementById(id);
 function toast(msg,t=""){const el=$("toast");el.textContent=msg;el.className="toast show"+(t?" "+t:"");setTimeout(()=>el.className="toast",3200);}
@@ -541,51 +512,34 @@ function getSBU(z){
   return "";
 }
 async function api(p){
+  if(!API||API.includes("PASTE")){toast("API not configured","err");return null;}
   try{const r=await fetch(API,{method:"POST",body:new URLSearchParams(p)});return await r.json();}
-  catch(e){toast("Network error — check connection","err");return null;}
+  catch(e){toast("Network error","err");return null;}
 }
-// Fetch POG — role-wise filtered to reduce data load
-async function fetchAllPOG(forceRefresh=false, extraParams={}){
-  const now=Date.now();
-  const cacheKey=JSON.stringify(extraParams);
-  if(!forceRefresh && cache.pog && cache.pogKey===cacheKey && (now-cache.ts)<CACHE_TTL) return cache.pog;
-  const params={action:"get_pog",...extraParams};
-  const res=await api(params);
-  if(res?.ok){cache.pog=res.rows;cache.ts=now;cache.pogKey=cacheKey;}
-  return cache.pog||[];
-}
-async function fetchAOPB(forceRefresh=false){
-  if(!forceRefresh && cache.aopb) return cache.aopb;
-  const res=await api({action:"get_aopb"});
-  if(res?.ok) cache.aopb=res.rows;
-  return cache.aopb||[];
-}
-function invalidateCache(){cache={pog:null,aopb:null,yef:null,ts:0,aopbTs:0,yefTs:0};}
 function mkChart(id,type,labels,datasets,extra={}){
   if(charts[id]) charts[id].destroy();
   charts[id]=new Chart($(id),{type,data:{labels,datasets},
     options:{maintainAspectRatio:false,resizeDelay:100,
-      plugins:{legend:{position:'bottom',labels:{font:{size:10},boxWidth:10}}},
+      plugins:{legend:{position:"bottom",labels:{font:{size:10},boxWidth:10}}},
       ...extra}});
 }
 
-/* ====== LOGOUT ====== */
-function logout(){
-  ["s-TM","s-SBU","s-CEO"].forEach(id=>$(id).style.display="none");
-  $("s-login").style.display="block";
-  $("logoutBtn").style.display="none";
-  $("hSub").innerHTML="Weekly Liquidation — Field Sales";
-  $("pinCard").style.display="none";
-  $("pinInput").value="";
-  role=null;pendRole=null;sbuKey=null;zoneKey=null;sbuSeasonF="ALL";
+/* ====== CACHE ====== */
+async function fetchAOPB(){
+  const now=Date.now();
+  if(cache.aopb&&(now-cache.aopbTs)<CACHE_TTL) return cache.aopb;
+  const res=await api({action:"get_aopb"});
+  if(res?.ok){cache.aopb=res.rows;cache.aopbTs=now;}
+  return cache.aopb||[];
 }
+function invalidateCache(){cache={pog:null,aopb:null,yef:null,ts:0,aopbTs:0,yefTs:0};}
 
 /* ====== LOGIN ====== */
 function showPIN(r){
   pendRole=r;
   const lbl={
     TM:"TM PIN",
-    SBU1:"SBU-1 Head PIN (Zone 3 & 4)",SBU2:"SBU-2 Head PIN (Zone 1 & 2)",SBU3:"SBU-3 Head PIN (Zone 5)",
+    SBU1:"SBU-1 Head PIN",SBU2:"SBU-2 Head PIN",SBU3:"SBU-3 Head PIN",
     ZONE1:"Zone 1 PIN",ZONE2:"Zone 2 PIN",ZONE3:"Zone 3 PIN",ZONE4:"Zone 4 PIN",ZONE5:"Zone 5 PIN",
     CEO:"CEO / PM PIN"
   };
@@ -598,19 +552,27 @@ function verifyPIN(){
   const v=$("pinInput").value.trim();
   if(v!==PINS[pendRole]){toast("Incorrect PIN","err");return;}
   role=pendRole;
-  // Determine if SBU head or Zone-wise
-  const isSBUHead=role.startsWith("SBU");
-  const isZone=role.startsWith("ZONE");
-  sbuKey=isSBUHead?role:null;
+  const isSBU=role.startsWith("SBU"), isZone=role.startsWith("ZONE");
+  sbuKey=isSBU?role:null;
   zoneKey=isZone?ZONE_KEY_MAP[role]:null;
   $("s-login").style.display="none";
   const bmap={TM:"rtm",SBU1:"rsbu",SBU2:"rsbu",SBU3:"rsbu",ZONE1:"rsbu",ZONE2:"rsbu",ZONE3:"rsbu",ZONE4:"rsbu",ZONE5:"rsbu",CEO:"rceo"};
-  const nmap={TM:"Territory Manager",SBU1:"SBU-1 Head",SBU2:"SBU-2 Head",SBU3:"SBU-3 Head",ZONE1:"Zone 1 (ZBM/RBM)",ZONE2:"Zone 2 (ZBM/RBM)",ZONE3:"Zone 3 (ZBM/RBM)",ZONE4:"Zone 4 (ZBM/RBM)",ZONE5:"Zone 5 (ZBM/RBM)",CEO:"CEO / PM"};
+  const nmap={TM:"Territory Manager",SBU1:"SBU-1 Head",SBU2:"SBU-2 Head",SBU3:"SBU-3 Head",ZONE1:"Zone 1",ZONE2:"Zone 2",ZONE3:"Zone 3",ZONE4:"Zone 4",ZONE5:"Zone 5",CEO:"CEO / PM"};
   $("hSub").innerHTML=`POG Tracker <span class="rbadge ${bmap[role]}">${nmap[role]}</span>`;
   $("logoutBtn").style.display="block";
   if(role==="TM"){$("s-TM").style.display="block";loadTMProfile();}
-  else if(isSBUHead||isZone){$("s-SBU").style.display="block";setupSBUScreen();}
+  else if(isSBU||isZone){$("s-SBU").style.display="block";setupSBUScreen();}
   else{$("s-CEO").style.display="block";loadCEO();}
+}
+function logout(){
+  ["s-TM","s-SBU","s-CEO"].forEach(id=>$(id).style.display="none");
+  $("s-login").style.display="block";
+  $("logoutBtn").style.display="none";
+  $("pinCard").style.display="none";
+  $("pinInput").value="";
+  $("hSub").innerHTML="Weekly Liquidation — Field Sales";
+  role=null;pendRole=null;sbuKey=null;zoneKey=null;sbuSeasonF="ALL";
+  invalidateCache();
 }
 
 /* ====== TM TABS ====== */
@@ -622,7 +584,7 @@ function tmTab(tab,el){
   if(tab==="mydata") loadMyData();
 }
 
-/* ====== PROFILE ====== */
+/* ====== TM PROFILE ====== */
 $("t_name").addEventListener("input",()=>$("t_name").value=$("t_name").value.toUpperCase());
 $("t_zone").addEventListener("change",()=>{
   const z=$("t_zone").value;
@@ -634,12 +596,9 @@ $("t_region").addEventListener("change",()=>{
   const r=$("t_region").value;
   $("t_terr").innerHTML='<option value="">Select Territory</option>'+(RT[r]||[]).map(t=>`<option>${t}</option>`).join("");
 });
-
 function loadTMProfile(){
   const saved=JSON.parse(localStorage.getItem("crystalTMProfile")||"null");
-  if(saved?.name&&saved?.zone&&saved?.territory){
-    tmP=saved; showTMMain();
-  }
+  if(saved?.name&&saved?.zone&&saved?.territory){tmP=saved;showTMMain();}
 }
 function showTMMain(){
   $("profileFormCard").style.display="none";
@@ -649,11 +608,9 @@ function showTMMain(){
   loadTMDash();
 }
 function editProfile(){
-  localStorage.removeItem("crystalTMProfile");
-  tmP=null;
+  localStorage.removeItem("crystalTMProfile");tmP=null;
   $("profileFormCard").style.display="block";
-  $("tmMain").style.display="none";
-  $("tmProfileBar").style.display="none";
+  $("tmMain").style.display="none";$("tmProfileBar").style.display="none";
 }
 function saveProfile(){
   const n=$("t_name").value.trim(),m=$("t_mob").value.trim();
@@ -662,162 +619,145 @@ function saveProfile(){
   if(m.replace(/\D/g,"").length!==10){toast("Mobile must be 10 digits","err");return;}
   tmP={name:n,mobile:m,zone:z,region:r,territory:tr,season:s,sbu:getSBU(z)};
   localStorage.setItem("crystalTMProfile",JSON.stringify(tmP));
-  showTMMain(); toast("✅ Profile saved!");
+  showTMMain();toast("✅ Profile saved!");
 }
 
-/* ====== TM MINI DASHBOARD ====== */
+/* ====== TM DASHBOARD ====== */
 async function loadTMDash(){
   if(!tmP) return;
-  const [pogRes,aopbRes,placRes]=await Promise.all([
+  const [pogRes,allAOPB]=await Promise.all([
     api({action:"get_pog",tmName:tmP.name,zone:tmP.zone,territory:tmP.territory,season:tmP.season}),
-    fetchAOPB(),
-    api({action:"get_placement",tmName:tmP.name,zone:tmP.zone,territory:tmP.territory,season:tmP.season})
+    fetchAOPB()
   ]);
   const myRows=pogRes?.ok?pogRes.rows:[];
-  const myAOPB=aopbRes.filter(r=>(r.TMName||"").toUpperCase()===tmP.name.toUpperCase()&&r.Territory===tmP.territory&&r.Season===tmP.season);
-  const myPlc=placRes?.ok?placRes.rows:[];
+  const myAOPB=allAOPB.filter(r=>(r.TMName||"").toUpperCase()===tmP.name.toUpperCase()&&r.Territory===tmP.territory&&r.Season===tmP.season);
   const appr=myRows.filter(r=>r.Status==="Approved");
   const totalPOG=appr.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
   const totalAOPB=myAOPB.reduce((s,a)=>s+(parseFloat(a.AOPB)||0),0);
   const pct=totalAOPB>0?Math.round(totalPOG/totalAOPB*100):0;
   const rev=myRows.filter(r=>r.Status==="Reverted").length;
-  $("td_pog").textContent=fN(totalPOG);
-  $("td_aopb").textContent=fN(totalAOPB);
-  $("td_pct").textContent=pct+"%";
-  $("td_rev").textContent=rev;
-
-  // Charts — show only if data exists
+  $("td_pog").textContent=fN(totalPOG);$("td_aopb").textContent=fN(totalAOPB);
+  $("td_pct").textContent=pct+"%";$("td_rev").textContent=rev;
   if(myAOPB.length>0||appr.length>0){
     $("tmCharts").style.display="block";
-
-    // Chart 1: AOPB vs Placement vs POG by Crop
-    const cAOPB={},cPlc={},cPOG={};
-    myAOPB.forEach(r=>{const c=r.Crop||"Other";cAOPB[c]=(cAOPB[c]||0)+(parseFloat(r.AOPB)||0);});
-    myPlc.forEach(r=>{const c=r.Crop||"Other";cPlc[c]=(cPlc[c]||0)+(parseFloat(r.Placement)||0);});
-    appr.forEach(r=>{const c=r.Crop||"Other";cPOG[c]=(cPOG[c]||0)+(parseFloat(r.CumulativePOG)||0);});
+    const cAOPB={},cPOG={};
+    myAOPB.forEach(r=>{const c=r.Crop||"?";cAOPB[c]=(cAOPB[c]||0)+(parseFloat(r.AOPB)||0);});
+    appr.forEach(r=>{const c=r.Crop||"?";cPOG[c]=(cPOG[c]||0)+(parseFloat(r.CumulativePOG)||0);});
     const crops=[...new Set([...Object.keys(cAOPB),...Object.keys(cPOG)])];
     mkChart("tc_main","bar",crops,[
-      {label:"AOPB",data:crops.map(c=>cAOPB[c]||0),backgroundColor:"#D9A441",borderRadius:5},
-      {label:"Placement",data:crops.map(c=>cPlc[c]||0),backgroundColor:"#2E5FA3",borderRadius:5},
-      {label:"POG",data:crops.map(c=>cPOG[c]||0),backgroundColor:"#2E8B57",borderRadius:5}
+      {label:"AOPB",data:crops.map(c=>cAOPB[c]||0),backgroundColor:"#D9A441",borderRadius:4},
+      {label:"POG",data:crops.map(c=>cPOG[c]||0),backgroundColor:"#2E8B57",borderRadius:4}
     ],{scales:{y:{beginAtZero:true}}});
-
-    // Chart 2: YEF Trend (latest 8 weeks, crop-wise)
     const yefByCrop={};
     myRows.filter(r=>parseFloat(r.CurrentYEF)>0).forEach(r=>{
-      const c=r.Crop||"Other";
-      if(!yefByCrop[c])yefByCrop[c]=[];
-      yefByCrop[c].push({label:r.WeekLabel||"",yef:parseFloat(r.CurrentYEF)||0,ts:new Date(r.Timestamp)});
+      const c=r.Crop||"?";if(!yefByCrop[c])yefByCrop[c]=[];
+      yefByCrop[c].push({label:r.WeekLabel||"",yef:parseFloat(r.CurrentYEF)||0});
     });
-    // Get all unique week labels sorted
-    const allWeeks=[...new Set(myRows.map(r=>r.WeekLabel).filter(Boolean))].sort();
-    const recentWeeks=allWeeks.slice(-8);
-    const yefDatasets=Object.entries(yefByCrop).map(([crop,pts],i)=>{
-      const ptMap={};pts.forEach(p=>ptMap[p.label]=p.yef);
-      return{label:crop,data:recentWeeks.map(w=>ptMap[w]||null),borderColor:COLORS[i%COLORS.length],backgroundColor:"transparent",tension:0.3,pointRadius:4,spanGaps:true};
+    const allWeeks=[...new Set(myRows.map(r=>r.WeekLabel).filter(Boolean))].slice(-8);
+    const yefDS=Object.entries(yefByCrop).map(([crop,pts],i)=>{
+      const pm={};pts.forEach(p=>pm[p.label]=p.yef);
+      return{label:crop,data:allWeeks.map(w=>pm[w]||null),borderColor:COLORS[i%COLORS.length],backgroundColor:"transparent",tension:0.3,pointRadius:4,spanGaps:true};
     });
-    if(yefDatasets.length>0){
-      mkChart("tc_yef","line",recentWeeks,yefDatasets,{scales:{y:{beginAtZero:false}}});
-    }
+    if(yefDS.length>0) mkChart("tc_yef","line",allWeeks,yefDS,{scales:{y:{beginAtZero:false}}});
   }
 }
 
-/* ====== WEEKLY ENTRY ====== */
-let lastDataMap={}; // {hybrid: {aopb,lastPlc,lastPOG,aopbLocked}}
-let lastYEF=0;
-
-async function onCropChange(){
+/* ====== POG ENTRY ====== */
+$("p_crop").addEventListener("change",()=>{
   const crop=$("p_crop").value;
-  if(!tmP||!crop){$("entryBody").style.display="none";return;}
-  // Lock date to today or future only
+  $("cropFields").style.display=crop?"block":"none";
+  if(crop){loadLastData();} else $("bulkBtn").style.display="none";
+});
+$("p_yef")?.addEventListener("input",()=>{
+  const cur=parseFloat($("p_yef").value)||0;
+  const infoDiv=$("yefLastInfo");
+  const warnDiv=$("yefWarn");
+  if(lastYEF>0&&cur>0&&cur<lastYEF) warnDiv.style.display="block";
+  else warnDiv.style.display="none";
+});
+
+async function loadLastData(){
+  if(!tmP) return;
+  const crop=$("p_crop").value;if(!crop) return;
   const today=new Date().toISOString().split("T")[0];
   $("p_date").min=today;
-  if(!$("p_date").value||$("p_date").value<today) $("p_date").value=today;
-  $("entryBody").style.display="block";
-  $("weeklyBody").innerHTML='<tr><td colspan="7" class="loading"><span class="spin"></span>Loading...</td></tr>';
-  const [aopbRes,pogRes,yefRes]=await Promise.all([
-    fetchAOPB(),
+  if(!$("p_date").value) $("p_date").value=today;
+  $("weeklyBody").innerHTML='<tr><td colspan="7" style="text-align:center;padding:12px;"><span class="spin"></span> Loading...</td></tr>';
+  $("bulkBtn").style.display="block";
+  const [pogRes,aopbRes,yefRes]=await Promise.all([
     api({action:"get_last_pog_bulk",tmName:tmP.name,zone:tmP.zone,region:tmP.region,territory:tmP.territory,season:tmP.season,crop}),
+    fetchAOPB(),
     api({action:"get_last_yef",tmName:tmP.name,zone:tmP.zone,territory:tmP.territory,season:tmP.season,crop})
   ]);
+  // AOPB map
   const myAOPB=aopbRes.filter(r=>(r.TMName||"").toUpperCase()===tmP.name.toUpperCase()&&r.Territory===tmP.territory&&r.Season===tmP.season&&r.Crop===crop);
-  const aopbMap={};myAOPB.forEach(r=>{aopbMap[r.Hybrid]=parseFloat(r.AOPB)||0;});
+  const aopbMap={};myAOPB.forEach(r=>{aopbMap[r.Hybrid]=parseFloat(r.AOPB)||0;lockedAOPB.add(`${tmP.territory}|${tmP.season}|${crop}|${r.Hybrid}`);});
+  // Last POG + Placement map
   lastDataMap={};
   if(pogRes?.ok) pogRes.rows.forEach(r=>{
     lastDataMap[r.Hybrid]={lastPOG:parseFloat(r.CumulativePOG)||0,lastPlc:parseFloat(r.Placement)||0,weekLabel:r.WeekLabel||""};
   });
-  // YEF: first entry = Initial YEF (locked), subsequent = Current YEF with +/- check
+  // YEF
   lastYEF=yefRes?.ok?parseFloat(yefRes.lastYEF)||0:0;
-  const isFirstYEF=lastYEF===0;
   const infoDiv=$("yefLastInfo");
-  infoDiv.style.display="block";
-  if(isFirstYEF){
-    infoDiv.innerHTML="🔒 <b>First entry</b> — this will be saved as your <b>Initial YEF</b> and locked";
+  if(lastYEF===0){
+    infoDiv.style.display="block";
+    infoDiv.innerHTML="🔒 <b>First entry</b> — this YEF will be locked as your Initial YEF";
     infoDiv.style.cssText="display:block;background:var(--wll);border-left:4px solid var(--wl);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--wd);margin:4px 0;";
   } else {
+    infoDiv.style.display="block";
     infoDiv.innerHTML=`Last YEF: <b>${fN(lastYEF)}</b> (${yefRes?.weekLabel||""})`;
     infoDiv.style.cssText="display:block;background:var(--bll);border-left:4px solid var(--bl);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--bd);margin:4px 0;";
   }
   $("yefWarn").style.display="none";
   // Build table
-  const hybrids=CH[crop]||[];
-  $("weeklyBody").innerHTML=hybrids.map(h=>{
+  $("weeklyBody").innerHTML=(CH[crop]||[]).map(h=>{
     const d=lastDataMap[h]||{lastPOG:0,lastPlc:0};
     const aopbVal=aopbMap[h]||0;
-    const isLocked=aopbVal>0;
+    const isLocked=lockedAOPB.has(`${tmP.territory}|${tmP.season}|${crop}|${h}`);
     return`<tr>
-      <td style="font-weight:700;white-space:normal;max-width:90px;">${h}</td>
+      <td style="font-weight:700;white-space:normal;max-width:85px;font-size:11.5px;">${h}</td>
       <td>${isLocked
         ?`<span class="lpog">${fN(aopbVal)}<br><span class="bdg b-lk" style="font-size:9px;">🔒</span></span>`
-        :`<input type="number" id="aopb_${h.replace(/[\s\*]/g,'_')}" placeholder="0" style="min-width:65px;">`
+        :`<input type="number" id="aopb_${h.replace(/[\s\*]/g,"_")}" placeholder="0" style="min-width:60px;">`
       }</td>
       <td><span class="lpog">${d.lastPlc>0?fN(d.lastPlc):"—"}</span></td>
-      <td><input type="number" id="plc_${h.replace(/[\s\*]/g,'_')}" placeholder="0" style="min-width:65px;" oninput="calcTotals()"></td>
+      <td><input type="number" id="plc_${h.replace(/[\s\*]/g,"_")}" placeholder="0" style="min-width:60px;" oninput="calcTotals()"></td>
       <td><span class="lpog">${d.lastPOG>0?fN(d.lastPOG):"—"}</span></td>
-      <td><input type="number" id="pog_${h.replace(/[\s\*]/g,'_')}" placeholder="0" style="min-width:65px;" oninput="updChange('${h}')"></td>
-      <td id="chg_${h.replace(/[\s\*]/g,'_')}" style="font-weight:700;min-width:50px;">—</td>
+      <td><input type="number" id="pog_${h.replace(/[\s\*]/g,"_")}" placeholder="0" style="min-width:60px;" oninput="updChange('${h}')"></td>
+      <td id="chg_${h.replace(/[\s\*]/g,"_")}" style="font-weight:700;min-width:45px;font-size:12px;">—</td>
     </tr>`;
   }).join("");
 }
 
-$("p_yef")?.addEventListener("input",()=>{
-  const cur=parseFloat($("p_yef").value)||0;
-  $("yefWarn").style.display=(lastYEF>0&&cur>0&&cur<lastYEF)?"block":"none";
-});
-
 function updChange(h){
-  const k=h.replace(/[\s\*]/g,'_');
+  const k=h.replace(/[\s\*]/g,"_");
   const cur=parseFloat($(`pog_${k}`)?.value)||0;
   const last=lastDataMap[h]?.lastPOG||0;
   const chg=cur-last;
   const cell=$(`chg_${k}`);if(!cell) return;
   if(cur===0){cell.textContent="—";cell.className="";calcTotals();return;}
-  cell.textContent=(chg>=0?"▲ +":"▼ ")+fN(Math.abs(chg));
+  cell.textContent=(chg>=0?"▲":"▼")+fN(Math.abs(chg));
   cell.className=chg>=0?"pval":"nval";
   const crop=$("p_crop").value;
   const anyMinus=(CH[crop]||[]).some(hh=>{
-    const c=parseFloat($(`pog_${hh.replace(/[\s\*]/g,'_')}`)?.value)||0;
-    const l=lastDataMap[hh]?.lastPOG||0;
-    return c>0&&c<l;
+    const c=parseFloat($(`pog_${hh.replace(/[\s\*]/g,"_")}`)?.value)||0;
+    return c>0&&c<(lastDataMap[hh]?.lastPOG||0);
   });
   $("decWarn").style.display=anyMinus?"block":"none";
   calcTotals();
 }
-
 function calcTotals(){
   const crop=$("p_crop").value;if(!crop) return;
   let tPlc=0,tPOG=0;
   (CH[crop]||[]).forEach(h=>{
-    const k=h.replace(/[\s\*]/g,'_');
+    const k=h.replace(/[\s\*]/g,"_");
     tPlc+=(parseFloat($(`plc_${k}`)?.value)||0);
     tPOG+=(parseFloat($(`pog_${k}`)?.value)||0);
   });
   const d=$("crystalTotals");
-  if(tPlc>0||tPOG>0){
-    d.style.display="block";
-    $("ct_plc").textContent=fN(tPlc);
-    $("ct_pog").textContent=fN(tPOG);
-  } else d.style.display="none";
+  if(tPlc>0||tPOG>0){d.style.display="block";$("ct_plc").textContent=fN(tPlc);$("ct_pog").textContent=fN(tPOG);}
+  else d.style.display="none";
 }
 
 async function submitWeekly(){
@@ -828,29 +768,22 @@ async function submitWeekly(){
   const btn=$("submitBtn");
   btn.innerHTML='<span class="spin"></span>Submitting...';btn.disabled=true;
   const wl="W/E "+new Date(wd).toLocaleDateString("en-IN");
-  const compData={
-    bayer:{plc:$("cp_bayer")?.value||0,pog:$("cg_bayer")?.value||0},
-    corteva:{plc:$("cp_corteva")?.value||0,pog:$("cg_corteva")?.value||0},
-    syngenta:{plc:$("cp_syngenta")?.value||0,pog:$("cg_syngenta")?.value||0},
-    advanta:{plc:$("cp_advanta")?.value||0,pog:$("cg_advanta")?.value||0},
-    others:{plc:$("cp_others")?.value||0,pog:$("cg_others")?.value||0}
-  };
   let done=0;
-  // Submit AOPB for unlocked hybrids first
   for(const h of (CH[crop]||[])){
-    const k=h.replace(/[\s\*]/g,'_');
+    const k=h.replace(/[\s\*]/g,"_");
+    // Submit AOPB if not locked
     const lk=`${tmP.territory}|${tmP.season}|${crop}|${h}`;
     if(!lockedAOPB.has(lk)){
       const av=$(`aopb_${k}`)?.value;
       if(av&&parseFloat(av)>0){
-        const r=await api({action:"submit_aopb",tmName:tmP.name,zone:tmP.zone,region:tmP.region,territory:tmP.territory,season:tmP.season,crop,hybrid:h,aopb:av});
+        const r=await api({action:"submit_aopb",tmName:tmP.name,tmMobile:tmP.mobile,zone:tmP.zone,region:tmP.region,territory:tmP.territory,season:tmP.season,sbu:tmP.sbu,crop,hybrid:h,aopb:av});
         if(r?.ok) lockedAOPB.add(lk);
       }
     }
     // Submit Placement
     const pv=$(`plc_${k}`)?.value;
-    if(pv&&parseFloat(pv)>=0){
-      await api({action:"submit_placement",tmName:tmP.name,zone:tmP.zone,region:tmP.region,territory:tmP.territory,season:tmP.season,sbu:tmP.sbu,crop,hybrid:h,placement:pv});
+    if(pv&&parseFloat(pv)>0){
+      await api({action:"submit_placement",tmName:tmP.name,zone:tmP.zone,region:tmP.region,territory:tmP.territory,season:tmP.season,sbu:tmP.sbu,crop,hybrid:h,weekDate:wd,weekLabel:wl,placement:pv});
     }
     // Submit POG
     const cv=parseFloat($(`pog_${k}`)?.value);
@@ -864,30 +797,24 @@ async function submitWeekly(){
         cumulativePOG:cv,prevCumulativePOG:last,weekChange:cv-last,
         seasonProgress:sp,currentYEF:yef,
         isFirstYEF:lastYEF===0?"true":"false",
-        compPlc_bayer:compData.bayer.plc,compPOG_bayer:compData.bayer.pog,
-        compPlc_corteva:compData.corteva.plc,compPOG_corteva:compData.corteva.pog,
-        compPlc_syngenta:compData.syngenta.plc,compPOG_syngenta:compData.syngenta.pog,
-        compPlc_advanta:compData.advanta.plc,compPOG_advanta:compData.advanta.pog,
-        compPlc_others:compData.others.plc,compPOG_others:compData.others.pog
+        compPlc_bayer:$("cp_bayer")?.value||0,compPOG_bayer:$("cg_bayer")?.value||0,
+        compPlc_corteva:$("cp_corteva")?.value||0,compPOG_corteva:$("cg_corteva")?.value||0,
+        compPlc_syngenta:$("cp_syngenta")?.value||0,compPOG_syngenta:$("cg_syngenta")?.value||0,
+        compPlc_advanta:$("cp_advanta")?.value||0,compPOG_advanta:$("cg_advanta")?.value||0,
+        compPlc_others:$("cp_others")?.value||0,compPOG_others:$("cg_others")?.value||0
       });
       if(r?.ok) done++;
     }
   }
   btn.innerHTML="📤 Submit Weekly Entry";btn.disabled=false;
   if(done>0){
-    toast(`✅ ${done} entries submitted! Pending SBU approval`);
+    toast(`✅ ${done} entries submitted — pending approval`);
     invalidateCache();
-    // Clear comp fields
     ["cp_bayer","cg_bayer","cp_corteva","cg_corteva","cp_syngenta","cg_syngenta",
-     "cp_advanta","cg_advanta","cp_others","cg_others","p_yef","p_sprog"].forEach(id=>{
-      const el=$(id);if(el)el.value="";
-    });
-    $("decWarn").style.display="none";
-    $("crystalTotals").style.display="none";
-    $("yefWarn").style.display="none";
+     "cp_advanta","cg_advanta","cp_others","cg_others","p_yef","p_sprog"].forEach(id=>{const el=$(id);if(el)el.value="";});
+    $("decWarn").style.display="none";$("crystalTotals").style.display="none";$("yefWarn").style.display="none";
     window._myRows=null;
-    onCropChange();
-    loadTMDash();
+    loadLastData();loadTMDash();
   }
 }
 
@@ -895,27 +822,18 @@ async function submitWeekly(){
 async function loadMyData(){
   if(!tmP) return;
   $("myPOGList").innerHTML='<div class="loading"><span class="spin"></span>Loading...</div>';
-  // Always fresh — direct API call, no cache
-  const res=await api({
-    action:"get_pog",
-    tmName:tmP.name,
-    zone:tmP.zone,
-    territory:tmP.territory,
-    season:tmP.season
-  });
+  const res=await api({action:"get_pog",tmName:tmP.name,zone:tmP.zone,territory:tmP.territory,season:tmP.season});
   window._myRows=res?.ok?res.rows:[];
-  checkYEFTrend(window._myRows);
-  filterMyData();
+  checkYEFTrend(window._myRows);filterMyData();
 }
 function checkYEFTrend(rows){
-  const cropYEF={};
+  const cy={};
   rows.filter(r=>parseFloat(r.CurrentYEF)>0).forEach(r=>{
-    const c=r.Crop||"";
-    if(!cropYEF[c])cropYEF[c]=[];
-    cropYEF[c].push({yef:parseFloat(r.CurrentYEF),ts:new Date(r.Timestamp)});
+    const c=r.Crop||"";if(!cy[c])cy[c]=[];
+    cy[c].push({yef:parseFloat(r.CurrentYEF),ts:new Date(r.Timestamp)});
   });
   let flag=false;
-  Object.values(cropYEF).forEach(arr=>{
+  Object.values(cy).forEach(arr=>{
     const s=arr.sort((a,b)=>b.ts-a.ts).slice(0,3);
     if(s.length>=2){let d=true;for(let i=0;i<s.length-1;i++){if(s[i].yef>=s[i+1].yef){d=false;break;}}if(d)flag=true;}
   });
@@ -929,15 +847,16 @@ function filterMyData(){
   if(status) rows=rows.filter(r=>r.Status===status);
   rows.sort((a,b)=>new Date(b.Timestamp)-new Date(a.Timestamp));
   $("myPOGList").innerHTML=rows.length?`<div class="tw"><table>
-    <tr><th>Week</th><th>Crop</th><th>Hybrid</th><th>Placement</th><th>POG</th><th>+/-</th><th>YEF</th><th>Ssn%</th><th>Status</th></tr>
-    ${rows.map(r=>{const chg=parseFloat(r.WeekChange)||0;return`<tr class="${chg<0?'mrow':''}">
+    <tr><th>Week</th><th>Crop</th><th>Hybrid</th><th>Plc</th><th>POG</th><th>+/-</th><th>YEF</th><th>Ssn%</th><th>Status</th></tr>
+    ${rows.map(r=>{const chg=parseFloat(r.WeekChange)||0;return`<tr class="${chg<0?"mrow":""}">
       <td>${r.WeekLabel||""}</td><td>${r.Crop}</td><td>${r.Hybrid}</td>
       <td>${fN(r.Placement)||"—"}</td><td><b>${fN(r.CumulativePOG)}</b></td>
-      <td class="${chg>=0?'pval':'nval'}">${chg>=0?"▲":"▼"}${fN(Math.abs(chg))}</td>
+      <td class="${chg>=0?"pval":"nval"}">${chg>=0?"▲":"▼"}${fN(Math.abs(chg))}</td>
       <td>${fN(r.CurrentYEF)||"—"}</td><td>${r.SeasonProgress||"—"}%</td>
       <td><span class="bdg b-${(r.Status||"pe").substring(0,2).toLowerCase()}">${r.Status||"Pending"}</span></td>
     </tr>`;}).join("")}
-  </table></div>`:'<div class="card empty"><div class="ei">📭</div>No entries found</div>';
+  </table></div>`
+  :'<div class="card empty"><div class="ei">📭</div>No entries found</div>';
 }
 
 /* ====== SBU SCREEN ====== */
@@ -949,30 +868,19 @@ function sbuTab(tab,el){
   if(tab==="dashboard") loadSBUDash();
 }
 function setupSBUScreen(){
-  const isSBUHead=role.startsWith("SBU");
-  const isZone=role.startsWith("ZONE");
-  // Determine which zones this user can see
-  let myZones=[];
-  let infoText="";
-  if(isSBUHead){
-    myZones=SBU_ZONES[sbuKey]||[];
-    infoText=`<b>${SBU_LABEL[sbuKey]}</b> — Combined view of: <b>${myZones.join(", ")}</b>`;
-  } else if(isZone){
-    myZones=[zoneKey];
-    infoText=`<b>${ZONE_LABEL[role]}</b> — Approvals & Dashboard for: <b>${zoneKey}</b>`;
-  }
-  $("sbuInfoBox").innerHTML=infoText;
-  // Populate zone dropdown with only accessible zones
+  const isSBU=role.startsWith("SBU"), isZone=role.startsWith("ZONE");
+  let myZones=isSBU?(SBU_ZONES[sbuKey]||[]):(zoneKey?[zoneKey]:[]);
+  $("sbuInfoBox").innerHTML=isSBU
+    ?`<b>${SBU_LABEL[sbuKey]}</b> — Combined view: <b>${myZones.join(", ")}</b>`
+    :`<b>${ZONE_LABEL[role]}</b> — Approvals & Dashboard: <b>${zoneKey}</b>`;
   const zSel=$("sr_zone");
   if(myZones.length===1){
-    // Zone login — no zone dropdown needed, hide it
     zSel.innerHTML=`<option value="${myZones[0]}">${myZones[0]}</option>`;
     zSel.disabled=true;
   } else {
     zSel.innerHTML='<option value="">All my zones</option>'+myZones.map(z=>`<option>${z}</option>`).join("");
     zSel.disabled=false;
   }
-  // Populate region dropdown
   const allRegions=[...new Set(myZones.flatMap(z=>ZR[z]||[]))];
   $("sr_region").innerHTML='<option value="">All Regions</option>'+allRegions.map(r=>`<option>${r}</option>`).join("");
   setupSBUSeasonChips();
@@ -981,20 +889,18 @@ function setupSBUScreen(){
 function onSBUZoneChange(){
   const z=$("sr_zone").value;
   const myZones=role.startsWith("SBU")?(SBU_ZONES[sbuKey]||[]):(zoneKey?[zoneKey]:[]);
-  const validZones=z?[z]:myZones;
-  const regions=[...new Set(validZones.flatMap(vz=>ZR[vz]||[]))];
-  $("sr_region").innerHTML='<option value="">All Regions</option>'+regions.map(r=>`<option>${r}</option>`).join("");
+  const valid=z?[z]:myZones;
+  $("sr_region").innerHTML='<option value="">All Regions</option>'+[...new Set(valid.flatMap(vz=>ZR[vz]||[]))].map(r=>`<option>${r}</option>`).join("");
   loadSBUApprovals();
 }
 function setupSBUSeasonChips(){
   const bar=$("sbuSeasonFilter");
-  const seasons=["ALL","Kharif 26-27","Rabi 26-27"];
-  bar.innerHTML=seasons.map(s=>`<div class="chip ${s===sbuSeasonF?'active':''}" onclick="setSBUSeason('${s}')">${s==="ALL"?"All Seasons":s}</div>`).join("");
+  ["ALL","Kharif 26-27","Rabi 26-27"].map(s=>`<div class="chip ${s===sbuSeasonF?"active":""}" onclick="setSBUSeason('${s}')">${s==="ALL"?"All Seasons":s}</div>`).join("");
+  bar.innerHTML=["ALL","Kharif 26-27","Rabi 26-27"].map(s=>`<div class="chip ${s===sbuSeasonF?"active":""}" onclick="setSBUSeason('${s}')">${s==="ALL"?"All Seasons":s}</div>`).join("");
 }
 function setSBUSeason(s){sbuSeasonF=s;setupSBUSeasonChips();loadSBUApprovals();}
 
 async function loadSBUApprovals(){
-  // Get accessible zones based on login type
   const myZones=role.startsWith("SBU")?(SBU_ZONES[sbuKey]||[]):(zoneKey?[zoneKey]:[]);
   const selZone=$("sr_zone").value;
   const selRegion=$("sr_region").value;
@@ -1002,12 +908,11 @@ async function loadSBUApprovals(){
   $("sbuPending").innerHTML='<div class="loading"><span class="spin"></span>Loading...</div>';
   const params={action:"get_pog"};
   if(selZone) params.zone=selZone;
-  else if(myZones.length===1) params.zone=myZones[0]; // Zone login — always filter by zone
+  else if(myZones.length===1) params.zone=myZones[0];
   if(selRegion) params.region=selRegion;
   if(sbuSeasonF!=="ALL") params.season=sbuSeasonF;
   const res=await api(params);
-  if(!res?.ok){$("sbuPending").innerHTML='<div class="empty"><div class="ei">❌</div>Error loading data</div>';return;}
-  // Strict client-side zone restriction — security layer
+  if(!res?.ok){$("sbuPending").innerHTML='<div class="empty"><div class="ei">❌</div>Error</div>';return;}
   let rows=res.rows.filter(r=>targetZones.includes(r.Zone));
   if(selRegion) rows=rows.filter(r=>r.Region===selRegion);
   const pend=rows.filter(r=>r.Status==="Pending");
@@ -1019,19 +924,18 @@ async function loadSBUApprovals(){
   $("sbuPending").innerHTML=pend.length?pend.map(r=>sbuCard(r)).join("")
     :'<div class="card empty"><div class="ei">✅</div>No pending approvals</div>';
   $("sbuApproved").innerHTML=appr.length?`<div class="tw"><table>
-    <tr><th>TM</th><th>Zone</th><th>Region</th><th>Territory</th><th>Crop</th><th>Hybrid</th><th>Week</th><th>Cumulative</th><th>Change</th></tr>
-    ${appr.slice().reverse().slice(0,30).map(r=>{const chg=parseFloat(r.WeekChange)||0;return`<tr class="${chg<0?'mrow':''}">
+    <tr><th>TM</th><th>Zone</th><th>Region</th><th>Territory</th><th>Crop</th><th>Hybrid</th><th>Week</th><th>POG</th><th>Change</th></tr>
+    ${appr.slice().reverse().slice(0,30).map(r=>{const chg=parseFloat(r.WeekChange)||0;return`<tr class="${chg<0?"mrow":""}">
       <td>${r.TMName}</td><td>${r.Zone}</td><td>${r.Region}</td><td>${r.Territory}</td>
       <td>${r.Crop}</td><td>${r.Hybrid}</td><td>${r.WeekLabel}</td>
       <td><b>${fN(r.CumulativePOG)}</b></td>
-      <td class="${chg>=0?'pval':'nval'}">${chg>=0?"▲ +":"▼ "}${fN(Math.abs(chg))}</td>
+      <td class="${chg>=0?"pval":"nval"}">${chg>=0?"▲":"▼"}${fN(Math.abs(chg))}</td>
     </tr>`;}).join("")}
   </table></div>`:'<div class="empty"><div class="ei">📭</div>No approved entries yet</div>';
 }
-
 function sbuCard(r){
   const chg=parseFloat(r.WeekChange)||0;
-  return`<div class="card" style="border-left:4px solid ${chg<0?'var(--dd)':'var(--wl)'};">
+  return`<div class="card" style="border-left:4px solid ${chg<0?"var(--dd)":"var(--wl)}"};">
     <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;">
       <div>
         <div style="font-weight:800;font-size:14px;">${r.TMName} — ${r.Territory}</div>
@@ -1040,10 +944,10 @@ function sbuCard(r){
       </div>
       <div style="text-align:right;">
         <div style="font-size:20px;font-weight:800;">${fN(r.CumulativePOG)}</div>
-        <div class="${chg>=0?'pval':'nval'}">${chg>=0?"▲ +":"▼ "}${fN(Math.abs(chg))}</div>
+        <div class="${chg>=0?"pval":"nval"}">${chg>=0?"▲":"▼"}${fN(Math.abs(chg))}</div>
       </div>
     </div>
-    ${chg<0?`<div class="dbox" style="padding:7px 10px;margin:0 0 8px;">⚠️ POG decreased! Review carefully before approving.</div>`:""}
+    ${chg<0?`<div class="dbox" style="padding:7px 10px;margin-bottom:8px;font-size:12px;">⚠️ POG decreased — verify before approving</div>`:""}
     <div style="display:flex;gap:8px;">
       <button class="btn-sm" style="background:var(--gl);flex:1;" onclick="doApprove('${r.RowID}')">✅ Approve</button>
       <button class="btn-sm" style="background:var(--dd);flex:1;" onclick="doRevert('${r.RowID}')">↩️ Revert</button>
@@ -1064,18 +968,15 @@ async function doRevert(rowID){
 
 async function loadSBUDash(){
   const myZones=role.startsWith("SBU")?(SBU_ZONES[sbuKey]||[]):(zoneKey?[zoneKey]:[]);
-  const season=$("sd_season").value;
-  const crop=$("sd_crop").value;
+  const season=$("sd_season").value,crop=$("sd_crop").value;
   const params={action:"get_pog",status:"Approved"};
   if(myZones.length===1) params.zone=myZones[0];
-  if(season) params.season=season;
-  if(crop) params.crop=crop;
-  const [pogRes,allAOPB,allYEF]=await Promise.all([api(params),fetchAOPB(),fetchYEF()]);
+  if(season) params.season=season;if(crop) params.crop=crop;
+  const [pogRes,allAOPB]=await Promise.all([api(params),fetchAOPB()]);
   let rows=(pogRes?.ok?pogRes.rows:[]).filter(r=>myZones.includes(r.Zone));
   let aopbRows=allAOPB.filter(r=>myZones.includes(r.Zone));
-  let yefRows=allYEF.filter(r=>myZones.includes(r.Zone));
-  if(season){aopbRows=aopbRows.filter(r=>r.Season===season);yefRows=yefRows.filter(r=>r.Season===season);}
-  if(crop){aopbRows=aopbRows.filter(r=>r.Crop===crop);}
+  if(season) aopbRows=aopbRows.filter(r=>r.Season===season);
+  if(crop) aopbRows=aopbRows.filter(r=>r.Crop===crop);
   const totalPOG=rows.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
   const totalAOPB=aopbRows.reduce((s,a)=>s+(parseFloat(a.AOPB)||0),0);
   const pct=totalAOPB>0?Math.round(totalPOG/totalAOPB*100):0;
@@ -1083,12 +984,12 @@ async function loadSBUDash(){
   $("sd_pog").textContent=fN(totalPOG);$("sd_aopb").textContent=fN(totalAOPB);
   $("sd_pct").textContent=pct+"%";$("sd_minus").textContent=minus;
   // Zone chart
-  const zm={};rows.forEach(r=>{const z=r.Zone||"Unk";zm[z]=(zm[z]||0)+(parseFloat(r.CumulativePOG)||0);});
+  const zm={};rows.forEach(r=>{const z=r.Zone||"?";zm[z]=(zm[z]||0)+(parseFloat(r.CumulativePOG)||0);});
   mkChart("sc_zone","bar",Object.keys(zm),[{label:"POG",data:Object.values(zm),backgroundColor:COLORS,borderRadius:4}],{scales:{y:{beginAtZero:true}},plugins:{legend:{display:false}}});
-  // Crop POG vs AOPB
+  // AOPB vs POG crop chart
   const cP={},cA={};
-  rows.forEach(r=>{const c=r.Crop||"Unk";cP[c]=(cP[c]||0)+(parseFloat(r.CumulativePOG)||0);});
-  aopbRows.forEach(a=>{const c=a.Crop||"Unk";cA[c]=(cA[c]||0)+(parseFloat(a.AOPB)||0);});
+  rows.forEach(r=>{const c=r.Crop||"?";cP[c]=(cP[c]||0)+(parseFloat(r.CumulativePOG)||0);});
+  aopbRows.forEach(a=>{const c=a.Crop||"?";cA[c]=(cA[c]||0)+(parseFloat(a.AOPB)||0);});
   const crops=[...new Set([...Object.keys(cP),...Object.keys(cA)])];
   mkChart("sc_crop","bar",crops,[
     {label:"AOPB",data:crops.map(c=>cA[c]||0),backgroundColor:"#D9A441",borderRadius:4},
@@ -1096,94 +997,98 @@ async function loadSBUDash(){
   ],{scales:{y:{beginAtZero:true}}});
   // YEF table
   const cy={};
-  rows.forEach(r=>{const c=r.Crop||"Unk";if(!cy[c])cy[c]={pog:0,curYEF:0,initYEF:0,sp:[]};cy[c].pog+=(parseFloat(r.CumulativePOG)||0);cy[c].curYEF+=(parseFloat(r.CurrentYEF)||0);if(r.SeasonProgress)cy[c].sp.push(parseFloat(r.SeasonProgress)||0);});
-  yefRows.forEach(y=>{const c=y.Crop||"Unk";if(!cy[c])cy[c]={pog:0,curYEF:0,initYEF:0,sp:[]};cy[c].initYEF+=(parseFloat(y.InitialYEF)||0);});
+  rows.forEach(r=>{const c=r.Crop||"?";if(!cy[c])cy[c]={pog:0,curYEF:0,sp:[]};cy[c].pog+=(parseFloat(r.CumulativePOG)||0);cy[c].curYEF+=(parseFloat(r.CurrentYEF)||0);if(r.SeasonProgress)cy[c].sp.push(parseFloat(r.SeasonProgress)||0);});
   $("sd_yef").innerHTML=Object.keys(cy).length?`<div class="tw"><table>
-    <tr><th>Crop</th><th>POG</th><th>Initial YEF</th><th>Current YEF</th><th>YEF Δ</th><th>Avg Season%</th></tr>
-    ${Object.entries(cy).map(([c,d])=>{const yd=d.curYEF-d.initYEF;const sp=d.sp.length?Math.round(d.sp.reduce((s,v)=>s+v,0)/d.sp.length):0;
-      return`<tr><td><b>${c}</b></td><td>${fN(d.pog)}</td><td>${fN(d.initYEF)}</td><td>${fN(d.curYEF)}</td><td class="${yd>=0?'pval':'nval'}">${yd>=0?"+":""}${fN(yd)}</td><td>${sp}%</td></tr>`;}).join("")}
-  </table></div>`:'<div class="empty"><div class="ei">📊</div>No data yet</div>';
-  // Comp table
-  const cm={};rows.forEach(r=>{const c=r.Crop||"Unk";if(!cm[c])cm[c]={};COMPS.forEach(k=>{cm[c][k]=(cm[c][k]||0)+(parseFloat(r["Comp"+k])||0);});});
-  $("sd_comp").innerHTML=Object.keys(cm).length?`<div class="tw"><table>
-    <tr><th>Crop</th>${COMPS.map(k=>`<th>${k}</th>`).join("")}<th>Total</th></tr>
-    ${Object.entries(cm).map(([c,d])=>`<tr><td><b>${c}</b></td>${COMPS.map(k=>`<td>${fN(d[k]||0)}</td>`).join("")}<td><b>${fN(Object.values(d).reduce((s,v)=>s+v,0))}</b></td></tr>`).join("")}
-  </table></div>`:'<div class="empty"><div class="ei">📊</div>No data yet</div>';
+    <tr><th>Crop</th><th>POG</th><th>Current YEF</th><th>Gap</th><th>Avg Season%</th></tr>
+    ${Object.entries(cy).map(([c,d])=>{const gap=d.curYEF-d.pog;const sp=d.sp.length?Math.round(d.sp.reduce((s,v)=>s+v,0)/d.sp.length):0;
+      return`<tr><td><b>${c}</b></td><td>${fN(d.pog)}</td><td>${fN(d.curYEF)}</td>
+        <td class="${gap>=0?"pval":"nval"}">${gap>=0?"+":""}${fN(gap)}</td><td>${sp}%</td></tr>`;
+    }).join("")}
+  </table></div>`:"<div class='empty'><div class='ei'>📭</div>No approved data yet</div>";
+  // Competition table
+  const cm={};COMPS.forEach(k=>cm[k]=0);
+  rows.forEach(r=>COMPS.forEach(k=>{cm[k]+=(parseFloat(r[`CompPlc_${k}`])||0);}));
+  $("sd_comp").innerHTML=`<div class="tw"><table>
+    <tr><th>Company</th><th>Placement</th><th>POG</th></tr>
+    ${COMPS.map(k=>{const pogK=rows.reduce((s,r)=>s+(parseFloat(r[`CompPOG_${k}`])||0),0);
+      return`<tr><td><b>${k}</b></td><td>${fN(cm[k])}</td><td>${fN(pogK)}</td></tr>`;}).join("")}
+  </table></div>`;
   // TM table
-  const tm={};rows.forEach(r=>{const t=r.TMName||"Unk";if(!tm[t])tm[t]={pog:0,zone:r.Zone,terr:r.Territory,minus:0,entries:0};tm[t].pog+=(parseFloat(r.CumulativePOG)||0);tm[t].entries++;if((parseFloat(r.WeekChange)||0)<0)tm[t].minus++;});
-  $("sd_tm").innerHTML=Object.keys(tm).length?`<div class="tw"><table>
-    <tr><th>TM</th><th>Zone</th><th>Territory</th><th>Total POG</th><th>Entries</th><th>⚠️ Minus</th></tr>
-    ${Object.entries(tm).sort((a,b)=>b[1].pog-a[1].pog).map(([t,d])=>`<tr class="${d.minus>0?'mrow':''}"><td><b>${t}</b></td><td>${d.zone}</td><td>${d.terr}</td><td>${fN(d.pog)}</td><td>${d.entries}</td><td class="${d.minus>0?'nval':'pval'}">${d.minus}</td></tr>`).join("")}
-  </table></div>`:'<div class="empty"><div class="ei">👤</div>No data yet</div>';
+  const tm={};rows.forEach(r=>{const t=r.TMName||"?";if(!tm[t])tm[t]={pog:0,zone:r.Zone,terr:r.Territory,minus:0};tm[t].pog+=(parseFloat(r.CumulativePOG)||0);if((parseFloat(r.WeekChange)||0)<0)tm[t].minus++;});
+  $("sd_tm").innerHTML=`<div class="tw"><table>
+    <tr><th>TM</th><th>Zone</th><th>Territory</th><th>Total POG</th><th>⚠️</th></tr>
+    ${Object.entries(tm).sort((a,b)=>b[1].pog-a[1].pog).map(([t,d])=>`<tr class="${d.minus>0?"mrow":""}">
+      <td><b>${t}</b></td><td>${d.zone}</td><td>${d.terr}</td><td>${fN(d.pog)}</td>
+      <td class="${d.minus>0?"nval":"pval"}">${d.minus}</td></tr>`).join("")}
+  </table></div>`;
 }
 
 /* ====== CEO ====== */
 async function loadCEO(){
   const season=$("c_season").value,crop=$("c_crop").value,sbu=$("c_sbu").value;
-  const [allPOG,allAOPB,allYEF]=await Promise.all([fetchAllPOG(true),fetchAOPB(true),fetchYEF(true)]);
-  // CEO sees only approved
-  let rows=allPOG.filter(r=>r.Status==="Approved");
-  let aopbRows=[...allAOPB];
-  if(season){rows=rows.filter(r=>r.Season===season);aopbRows=aopbRows.filter(r=>r.Season===season);}
-  if(crop){rows=rows.filter(r=>r.Crop===crop);aopbRows=aopbRows.filter(r=>r.Crop===crop);}
-  if(sbu) rows=rows.filter(r=>r.SBU===sbu);
+  const params={action:"get_pog",status:"Approved"};
+  if(season)params.season=season;if(crop)params.crop=crop;if(sbu)params.sbu=sbu;
+  const [pogRes,allAOPB]=await Promise.all([api(params),fetchAOPB()]);
+  if(!pogRes?.ok) return;
+  const rows=pogRes.rows;
+  const aopbRows=allAOPB;
   const totalPOG=rows.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
   const totalAOPB=aopbRows.reduce((s,a)=>s+(parseFloat(a.AOPB)||0),0);
   const pct=totalAOPB>0?Math.round(totalPOG/totalAOPB*100):0;
   const minus=rows.filter(r=>(parseFloat(r.WeekChange)||0)<0).length;
   $("cs_pog").textContent=fN(totalPOG);$("cs_aopb").textContent=fN(totalAOPB);
   $("cs_pct").textContent=pct+"%";$("cs_minus").textContent=minus;
-  const sm={};rows.forEach(r=>{const s=r.SBU||"Unk";sm[s]=(sm[s]||0)+(parseFloat(r.CumulativePOG)||0);});
+  const sm={};rows.forEach(r=>{const s=r.SBU||"?";sm[s]=(sm[s]||0)+(parseFloat(r.CumulativePOG)||0);});
   mkChart("cc_sbu","doughnut",Object.keys(sm),[{data:Object.values(sm),backgroundColor:COLORS}]);
   const cP={},cA={};
-  rows.forEach(r=>{const c=r.Crop||"Unk";cP[c]=(cP[c]||0)+(parseFloat(r.CumulativePOG)||0);});
-  aopbRows.forEach(a=>{const c=a.Crop||"Unk";cA[c]=(cA[c]||0)+(parseFloat(a.AOPB)||0);});
+  rows.forEach(r=>{const c=r.Crop||"?";cP[c]=(cP[c]||0)+(parseFloat(r.CumulativePOG)||0);});
+  aopbRows.forEach(a=>{const c=a.Crop||"?";cA[c]=(cA[c]||0)+(parseFloat(a.AOPB)||0);});
   const crops=[...new Set([...Object.keys(cP),...Object.keys(cA)])];
   mkChart("cc_crop","bar",crops,[
     {label:"AOPB",data:crops.map(c=>cA[c]||0),backgroundColor:"#D9A441",borderRadius:4},
     {label:"POG",data:crops.map(c=>cP[c]||0),backgroundColor:"#2E8B57",borderRadius:4}
   ],{scales:{y:{beginAtZero:true}}});
-  const compT={};COMPS.forEach(k=>compT[k]=0);
-  rows.forEach(r=>COMPS.forEach(k=>{compT[k]+=(parseFloat(r["Comp"+k])||0);}));
-  mkChart("cc_comp","doughnut",COMPS,[{data:Object.values(compT),backgroundColor:COLORS}]);
-  const spM={};rows.forEach(r=>{const c=r.Crop||"Unk";if(!spM[c])spM[c]=[];if(r.SeasonProgress)spM[c].push(parseFloat(r.SeasonProgress)||0);});
-  const spC=Object.keys(spM);
-  mkChart("cc_sp","bar",spC,[{label:"Avg Season%",data:spC.map(c=>spM[c].length?Math.round(spM[c].reduce((s,v)=>s+v,0)/spM[c].length):0),backgroundColor:"#2E5FA3",borderRadius:4}],{scales:{y:{beginAtZero:true,max:100}},plugins:{legend:{display:false}}});
+  const compP={},compG={};COMPS.forEach(k=>{compP[k]=0;compG[k]=0;});
+  rows.forEach(r=>COMPS.forEach(k=>{compP[k]+=(parseFloat(r[`CompPlc_${k}`])||0);compG[k]+=(parseFloat(r[`CompPOG_${k}`])||0);}));
+  mkChart("cc_comp","bar",COMPS,[
+    {label:"Placement",data:COMPS.map(k=>compP[k]),backgroundColor:"#2E5FA3",borderRadius:4},
+    {label:"POG",data:COMPS.map(k=>compG[k]),backgroundColor:"#C0392B",borderRadius:4}
+  ],{scales:{y:{beginAtZero:true}}});
+  const spM={};rows.forEach(r=>{const c=r.Crop||"?";if(!spM[c])spM[c]=[];if(r.SeasonProgress)spM[c].push(parseFloat(r.SeasonProgress)||0);});
+  mkChart("cc_sp","bar",Object.keys(spM),[{label:"Avg Season%",data:Object.values(spM).map(a=>a.length?Math.round(a.reduce((s,v)=>s+v,0)/a.length):0),backgroundColor:"#2E5FA3",borderRadius:4}],{scales:{y:{beginAtZero:true,max:100}},plugins:{legend:{display:false}}});
   // YEF
-  const cy={};rows.forEach(r=>{const c=r.Crop||"Unk";if(!cy[c])cy[c]={pog:0,curYEF:0,initYEF:0};cy[c].pog+=(parseFloat(r.CumulativePOG)||0);cy[c].curYEF+=(parseFloat(r.CurrentYEF)||0);});
-  allYEF.forEach(y=>{const c=y.Crop||"Unk";if(!cy[c])cy[c]={pog:0,curYEF:0,initYEF:0};cy[c].initYEF+=(parseFloat(y.InitialYEF)||0);});
-  $("c_yef").innerHTML=crops.length?`<div class="tw"><table>
-    <tr><th>Crop</th><th>AOPB</th><th>Initial YEF</th><th>Current YEF</th><th>POG Achieved</th><th>Gap (YEF-POG)</th></tr>
-    ${crops.map(c=>{const d=cy[c]||{pog:0,curYEF:0,initYEF:0};const gap=d.curYEF-d.pog;return`<tr><td><b>${c}</b></td><td>${fN(cA[c]||0)}</td><td>${fN(d.initYEF)}</td><td>${fN(d.curYEF)}</td><td>${fN(d.pog)}</td><td class="${gap>=0?'pval':'nval'}">${gap>=0?"+":""}${fN(gap)}</td></tr>`;}).join("")}
-  </table></div>`:'<div class="empty"><div class="ei">📊</div>No data yet</div>';
-  // Zone summary
-  const zM={};rows.forEach(r=>{const z=r.Zone||"Unk";if(!zM[z])zM[z]={pog:0,sbu:r.SBU||"",tms:new Set(),minus:0};zM[z].pog+=(parseFloat(r.CumulativePOG)||0);zM[z].tms.add(r.TMName);if((parseFloat(r.WeekChange)||0)<0)zM[z].minus++;});
-  $("c_zone").innerHTML=Object.keys(zM).length?`<div class="tw"><table>
-    <tr><th>SBU</th><th>Zone</th><th>Total POG</th><th>Active TMs</th><th>⚠️ Minus</th></tr>
-    ${Object.entries(zM).sort().map(([z,d])=>`<tr class="${d.minus>0?'mrow':''}"><td>${d.sbu}</td><td><b>${z}</b></td><td>${fN(d.pog)}</td><td>${d.tms.size}</td><td class="${d.minus>0?'nval':'pval'}">${d.minus}</td></tr>`).join("")}
-  </table></div>`:'<div class="empty"><div class="ei">📍</div>No data yet</div>';
-  // All entries table
+  const cy={};rows.forEach(r=>{const c=r.Crop||"?";if(!cy[c])cy[c]={pog:0,curYEF:0};cy[c].pog+=(parseFloat(r.CumulativePOG)||0);cy[c].curYEF+=(parseFloat(r.CurrentYEF)||0);});
+  $("c_yef").innerHTML=`<div class="tw"><table>
+    <tr><th>Crop</th><th>AOPB</th><th>Current YEF</th><th>POG Achieved</th><th>Gap</th></tr>
+    ${Object.entries(cy).map(([c,d])=>{const gap=d.curYEF-d.pog;return`<tr>
+      <td><b>${c}</b></td><td>${fN(cA[c]||0)}</td><td>${fN(d.curYEF)}</td><td>${fN(d.pog)}</td>
+      <td class="${gap>=0?"pval":"nval"}">${gap>=0?"+":""}${fN(gap)}</td></tr>`;}).join("")}
+  </table></div>`;
+  const zM={};rows.forEach(r=>{const z=r.Zone||"?";if(!zM[z])zM[z]={pog:0,sbu:r.SBU||"",tms:new Set(),minus:0};zM[z].pog+=(parseFloat(r.CumulativePOG)||0);zM[z].tms.add(r.TMName);if((parseFloat(r.WeekChange)||0)<0)zM[z].minus++;});
+  $("c_zone").innerHTML=`<div class="tw"><table>
+    <tr><th>SBU</th><th>Zone</th><th>POG</th><th>TMs</th><th>⚠️</th></tr>
+    ${Object.entries(zM).sort().map(([z,d])=>`<tr class="${d.minus>0?"mrow":""}">
+      <td>${d.sbu}</td><td><b>${z}</b></td><td>${fN(d.pog)}</td><td>${d.tms.size}</td>
+      <td class="${d.minus>0?"nval":"pval"}">${d.minus}</td></tr>`).join("")}
+  </table></div>`;
   $("c_all").innerHTML=rows.length?`<div class="tw"><table>
-    <tr><th>Date</th><th>TM</th><th>SBU</th><th>Zone</th><th>Territory</th><th>Season</th><th>Crop</th><th>Hybrid</th><th>Week</th><th>Cumulative</th><th>Change</th><th>Season%</th><th>Curr YEF</th></tr>
-    ${rows.slice().reverse().slice(0,50).map(r=>{const chg=parseFloat(r.WeekChange)||0;return`<tr class="${chg<0?'mrow':''}">
+    <tr><th>Date</th><th>TM</th><th>SBU</th><th>Zone</th><th>Terr</th><th>Season</th><th>Crop</th><th>Hybrid</th><th>Week</th><th>POG</th><th>+/-</th><th>YEF</th><th>Ssn%</th></tr>
+    ${rows.slice().reverse().slice(0,50).map(r=>{const chg=parseFloat(r.WeekChange)||0;return`<tr class="${chg<0?"mrow":""}">
       <td>${new Date(r.Timestamp).toLocaleDateString("en-IN")}</td>
-      <td>${r.TMName}</td><td>${r.SBU}</td><td>${r.Zone}</td><td>${r.Territory}</td>
-      <td>${r.Season}</td><td>${r.Crop}</td><td>${r.Hybrid}</td><td>${r.WeekLabel}</td>
+      <td>${r.TMName}</td><td>${r.SBU}</td><td>${r.Zone}</td><td>${r.Territory}</td><td>${r.Season}</td>
+      <td>${r.Crop}</td><td>${r.Hybrid}</td><td>${r.WeekLabel}</td>
       <td><b>${fN(r.CumulativePOG)}</b></td>
-      <td class="${chg>=0?'pval':'nval'}">${chg>=0?"▲ +":"▼ "}${fN(Math.abs(chg))}</td>
-      <td>${r.SeasonProgress||"—"}%</td><td>${fN(r.CurrentYEF)}</td>
+      <td class="${chg>=0?"pval":"nval"}">${chg>=0?"▲":"▼"}${fN(Math.abs(chg))}</td>
+      <td>${fN(r.CurrentYEF)||"—"}</td><td>${r.SeasonProgress||"—"}%</td>
     </tr>`;}).join("")}
   </table></div>`:'<div class="empty"><div class="ei">📭</div>No approved data yet</div>';
 }
-
 function exportCEO(){
   const tbl=$("c_all").querySelector("table");
   if(!tbl){toast("No data","err");return;}
   const csv=Array.from(tbl.rows).map(r=>Array.from(r.cells).map(c=>'"'+c.textContent.trim().replace(/"/g,'""')+'"').join(",")).join("\n");
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-  a.download="Crystal_POG_"+new Date().toISOString().slice(0,10)+".csv";
-  a.click();
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download="Crystal_POG_"+new Date().toISOString().slice(0,10)+".csv";a.click();
 }
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
