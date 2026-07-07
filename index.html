@@ -750,17 +750,21 @@ function renderAOPBPlcPOG(crops, chartId, tableId){
 async function loadTMDash(){
   if(!tmP) return;
   const [pogRes,allAOPB,placRes]=await Promise.all([
-    api({action:"get_pog",tmName:tmP.name,zone:tmP.zone,territory:tmP.territory,season:tmP.season}),
+    api({action:"get_pog",tmName:tmP.name,season:tmP.season}),
     fetchAOPB(),
-    api({action:"get_placement",tmName:tmP.name,zone:tmP.zone,territory:tmP.territory,season:tmP.season})
+    api({action:"get_placement",tmName:tmP.name,season:tmP.season})
   ]);
   const myRows=pogRes?.ok?pogRes.rows:[];
   const myPlcRows=placRes?.ok?placRes.rows:[];
-  const myAOPB=allAOPB.filter(r=>(r.TMName||"").toUpperCase()===tmP.name.toUpperCase()&&r.Territory===tmP.territory&&r.Season===tmP.season);
+  const myAOPB=allAOPB.filter(r=>(r.TMName||"").toString().trim().toUpperCase()===tmP.name.trim().toUpperCase()&&(r.Season||"").toString().trim()===tmP.season.trim());
 
   // Latest per hybrid (not sum)
   const latestPOG=getLatestPerTMCrop(myRows.filter(r=>r.Status==="Approved"));
-  const latestPlc=getLatestPlacement(myPlcRows);
+  // Placement: prefer Placement_Data sheet; fallback to Placement stored in POG rows
+  let latestPlc=getLatestPlacement(myPlcRows);
+  if(!latestPlc.length){
+    latestPlc=getLatestPerTMCrop(myRows).filter(r=>parseFloat(r.Placement)>0);
+  }
 
   // Stats
   const totalPOG=latestPOG.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
@@ -823,7 +827,7 @@ async function loadLastData(){
     api({action:"get_last_yef",tmName:tmP.name,zone:tmP.zone,territory:tmP.territory,season:tmP.season,crop})
   ]);
   // AOPB map
-  const myAOPB=aopbRes.filter(r=>(r.TMName||"").toUpperCase()===tmP.name.toUpperCase()&&r.Territory===tmP.territory&&r.Season===tmP.season&&r.Crop===crop);
+  const myAOPB=aopbRes.filter(r=>(r.TMName||"").toString().trim().toUpperCase()===tmP.name.trim().toUpperCase()&&(r.Season||"").toString().trim()===tmP.season.trim()&&r.Crop===crop);
   const aopbMap={};myAOPB.forEach(r=>{aopbMap[r.Hybrid]=parseFloat(r.AOPB)||0;lockedAOPB.add(`${tmP.territory}|${tmP.season}|${crop}|${r.Hybrid}`);});
   // Last POG + Placement map
   lastDataMap={};
@@ -928,6 +932,7 @@ async function submitWeekly(){
         zone:tmP.zone,region:tmP.region,territory:tmP.territory,season:tmP.season,sbu:tmP.sbu,
         crop,hybrid:h,weekDate:wd,weekLabel:wl,
         cumulativePOG:cv,prevCumulativePOG:last,weekChange:cv-last,
+        placement:(parseFloat($(`plc_${k}`)?.value)||lastDataMap[h]?.lastPlc||0),
         seasonProgress:sp,currentYEF:yef,prevYEF:lastYEF,
         isFirstYEF:lastYEF===0?"true":"false",
         compPlc_bayer:$("cp_bayer")?.value||0,compPOG_bayer:$("cg_bayer")?.value||0,
@@ -955,7 +960,7 @@ async function submitWeekly(){
 async function loadMyData(){
   if(!tmP) return;
   $("myPOGList").innerHTML='<div class="loading"><span class="spin"></span>Loading...</div>';
-  const res=await api({action:"get_pog",tmName:tmP.name,zone:tmP.zone,territory:tmP.territory,season:tmP.season});
+  const res=await api({action:"get_pog",tmName:tmP.name,season:tmP.season});
   window._myRows=res?.ok?res.rows:[];
   checkYEFTrend(window._myRows);filterMyData();
 }
@@ -1048,8 +1053,9 @@ async function loadSBUApprovals(){
   if(sbuSeasonF!=="ALL") params.season=sbuSeasonF;
   const res=await api(params);
   if(!res?.ok){$("sbuPending").innerHTML='<div class="empty"><div class="ei">❌</div>Error</div>';return;}
-  let rows=res.rows.filter(r=>targetZones.includes(r.Zone));
-  if(selRegion) rows=rows.filter(r=>r.Region===selRegion);
+  const normZones=targetZones.map(z=>z.trim().toUpperCase());
+  let rows=res.rows.filter(r=>normZones.includes((r.Zone||"").toString().trim().toUpperCase()));
+  if(selRegion) rows=rows.filter(r=>(r.Region||"").toString().trim().toUpperCase()===selRegion.trim().toUpperCase());
   const pend=rows.filter(r=>r.Status==="Pending");
   const appr=rows.filter(r=>r.Status==="Approved");
   const rev=rows.filter(r=>r.Status==="Reverted");
@@ -1131,8 +1137,9 @@ async function loadSBUDash(){
   if(myZones.length===1) params.zone=myZones[0];
   if(season) params.season=season;if(crop) params.crop=crop;
   const [pogRes,allAOPB]=await Promise.all([api(params),fetchAOPB()]);
-  let rows=(pogRes?.ok?pogRes.rows:[]).filter(r=>myZones.includes(r.Zone));
-  let aopbRows=allAOPB.filter(r=>myZones.includes(r.Zone));
+  const nZones=myZones.map(z=>z.trim().toUpperCase());
+  let rows=(pogRes?.ok?pogRes.rows:[]).filter(r=>nZones.includes((r.Zone||"").toString().trim().toUpperCase()));
+  let aopbRows=allAOPB.filter(r=>nZones.includes((r.Zone||"").toString().trim().toUpperCase()));
   if(season) aopbRows=aopbRows.filter(r=>r.Season===season);
   if(crop) aopbRows=aopbRows.filter(r=>r.Crop===crop);
   const totalPOG=rows.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
