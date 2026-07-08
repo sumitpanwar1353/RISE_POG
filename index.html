@@ -168,6 +168,8 @@ td:first-child{background:#fff;}
       <button class="btn-sm" style="background:var(--gray);" onclick="resetProfile()">Edit</button>
     </div>
   </div>
+  <!-- Offline outbox badge -->
+  <div class="wbox" id="outboxBadge" style="display:none;cursor:pointer;" onclick="flushOutbox()"></div>
 
   <!-- Profile form -->
   <div class="card" id="tmForm">
@@ -452,16 +454,21 @@ td:first-child{background:#fff;}
 </div>
 
 </main>
+<div style="text-align:center;font-size:10.5px;color:var(--gray);padding:6px 12px 14px;" id="syncFooter">Backend: — · Last synced: —</div>
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 /* ============================================================
-   CRYSTAL POG TRACKER — CLEAN v2
-   TM Tab — fully working
-   SBU/Zone + CEO — next phase
+   CRYSTAL POG TRACKER — v3 (fixed)
+   - Batch weekly submit (1 network call instead of 20-40)
+   - Offline retry queue (no more silently lost entries)
+   - CEO dashboard ID bugs fixed (cYEF/cZone/cAll → *Table)
+   - Stale-profile guard against master data changes
+   - Build tag + last-synced display for transparency
    ============================================================ */
 
+const APP_BUILD = "v3-2026-07-08";
 const API = "https://script.google.com/macros/s/AKfycbyawxjNuDIrKvsj5GMwvwjwwHyPKTrUo6AbmUgegJVC_-oOoQ15TeVbERToq1DY9y4hrg/exec";
 
 /* ---------- PINS ---------- */
@@ -531,15 +538,52 @@ function toast(msg,t=""){
 }
 
 /* ---------- API ---------- */
-async function call(params){
+let lastBuild="", lastSyncTime=null;
+async function call(params, silent){
   try{
     const r=await fetch(API,{method:"POST",body:new URLSearchParams(params)});
     const d=await r.json();
+    if(d && d.build){ lastBuild=d.build; }
+    lastSyncTime=new Date();
+    updateSyncFooter();
     return d;
   }catch(e){
-    toast("Network error — check connection","err");
+    if(!silent) toast("Network error — saved for retry","err");
     return null;
   }
+}
+function updateSyncFooter(){
+  const el=$("syncFooter");
+  if(!el) return;
+  const t=lastSyncTime?lastSyncTime.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}):"—";
+  el.textContent=`Backend: ${lastBuild||"—"} · Last synced: ${t}`;
+}
+
+/* ---------- OFFLINE OUTBOX (retry queue for failed weekly submits) ---------- */
+function getOutbox(){ return JSON.parse(localStorage.getItem("pog_outbox")||"[]"); }
+function setOutbox(q){ localStorage.setItem("pog_outbox",JSON.stringify(q)); updateOutboxBadge(); }
+function queueForRetry(payload){
+  const q=getOutbox(); q.push({payload, queuedAt:new Date().toISOString()}); setOutbox(q);
+}
+function updateOutboxBadge(){
+  const n=getOutbox().length;
+  const b=$("outboxBadge");
+  if(!b) return;
+  b.style.display=n>0?"block":"none";
+  b.textContent=`🔄 ${n} entr${n===1?"y":"ies"} waiting to sync — tap to retry`;
+}
+async function flushOutbox(){
+  let q=getOutbox();
+  if(!q.length) return;
+  const remaining=[];
+  let ok=0;
+  for(const item of q){
+    const res=await call({action:"submit_week", payload:JSON.stringify(item.payload)}, true);
+    if(res && res.ok){ ok++; } else { remaining.push(item); }
+  }
+  setOutbox(remaining);
+  if(ok>0) toast(`✅ Synced ${ok} queued entr${ok===1?"y":"ies"}`);
+  if(remaining.length>0) toast(`⚠️ ${remaining.length} still pending — will retry again`, "warn");
 }
 
 /* ---------- CHART ---------- */
@@ -606,10 +650,22 @@ $("fName").addEventListener("input",()=>$("fName").value=$("fName").value.toUppe
 
 function initTM(){
   const saved=JSON.parse(localStorage.getItem("pog_tm_profile")||"null");
-  if(saved?.name&&saved?.zone&&saved?.territory&&saved?.season){
+  // Guard against stale profile: if zone/region/territory no longer exist in current
+  // master data (e.g. you renamed/removed one), force re-entry instead of silently
+  // breaking dropdowns/filters downstream.
+  const stillValid = saved?.name && saved?.zone && saved?.territory && saved?.season
+    && ZR[saved.zone]
+    && (ZR[saved.zone]||[]).includes(saved.region)
+    && (RT[saved.region]||[]).includes(saved.territory);
+  if(stillValid){
     tmP=saved;
     showTMDash();
+    flushOutbox();
+  } else if(saved){
+    localStorage.removeItem("pog_tm_profile");
+    toast("Profile data was outdated — please re-enter once","warn");
   }
+  updateOutboxBadge();
 }
 function saveProfile(){
   const n=$("fName").value.trim();
@@ -790,73 +846,78 @@ async function submitWeekly(){
   btn.innerHTML='<span class="spin"></span>Submitting...'; btn.disabled=true;
   const wl="W/E "+new Date(wd).toLocaleDateString("en-IN");
   const hybrids=CH[crop]||[];
-  let submitted=0;
+
+  // Build ONE batch payload for the whole week — all hybrids together.
+  const items=[];
   for(const h of hybrids){
     const k=N(h);
-    const pogVal=parseFloat($(`ig_${k}`)?.value);
+    const pogRaw=$(`ig_${k}`)?.value;
     const plcVal=parseFloat($(`ip_${k}`)?.value)||0;
     const aopbVal=parseFloat($(`ia_${k}`)?.value)||0;
+    const hasPOG=pogRaw!==""&&pogRaw!=null&&!isNaN(parseFloat(pogRaw));
     const hasAOPB=aopbVal>0;
-    const hasPOG=!isNaN(pogVal)&&pogVal>=0;
     const hasPlc=plcVal>0;
     if(!hasAOPB&&!hasPOG&&!hasPlc) continue;
-    // Submit AOPB if unlocked & entered
-    if(hasAOPB){
-      const lk=`${tmP.territory}|${tmP.season}|${crop}|${h}`;
-      await call({action:"submit_aopb",
-        tmName:tmP.name, tmMobile:tmP.mobile,
-        zone:tmP.zone, region:tmP.region, territory:tmP.territory,
-        season:tmP.season, sbu:tmP.sbu, crop, hybrid:h, aopb:aopbVal
-      });
-    }
-    // Submit POG (always — even if 0, to record placement + YEF + comp)
-    if(hasPOG||hasPlc){
-      const lastPOG=lastMap[k]?.lastPOG||0;
-      const res=await call({
-        action:"submit_pog",
-        tmName:tmP.name, tmMobile:tmP.mobile,
-        zone:tmP.zone, region:tmP.region, territory:tmP.territory,
-        season:tmP.season, sbu:tmP.sbu,
-        crop, hybrid:h,
-        weekDate:wd, weekLabel:wl,
-        cumulativePOG:hasPOG?pogVal:lastPOG,
-        prevCumulativePOG:lastPOG,
-        weekChange:hasPOG?(pogVal-lastPOG):0,
-        placement:plcVal,
-        currentYEF:parseFloat(yef)||0,
-        prevYEF:lastYEF,
-        yefChange:(parseFloat(yef)||0)-lastYEF,
-        isFirstYEF:lastYEF===0?"true":"false",
-        seasonProgress:parseFloat(sp)||0,
-        compPlcBayer:parseFloat($("cPlcBayer")?.value)||0,
-        compPOGBayer:parseFloat($("cPOGBayer")?.value)||0,
-        compPlcCorteva:parseFloat($("cPlcCorteva")?.value)||0,
-        compPOGCorteva:parseFloat($("cPOGCorteva")?.value)||0,
-        compPlcSyngenta:parseFloat($("cPlcSyngenta")?.value)||0,
-        compPOGSyngenta:parseFloat($("cPOGSyngenta")?.value)||0,
-        compPlcAdvanta:parseFloat($("cPlcAdvanta")?.value)||0,
-        compPOGAdvanta:parseFloat($("cPOGAdvanta")?.value)||0,
-        compPlcOthers:parseFloat($("cPlcOthers")?.value)||0,
-        compPOGOthers:parseFloat($("cPOGOthers")?.value)||0
-      });
-      if(res?.ok) submitted++;
-    }
-  }
-  btn.innerHTML="📤 Submit Weekly Entry"; btn.disabled=false;
-  if(submitted>0){
-    toast(`✅ ${submitted} entries submitted — pending approval`);
-    // Clear form
-    $("eYEF").value=""; $("eSP").value="";
-    ["Bayer","Corteva","Syngenta","Advanta","Others"].forEach(c=>{
-      $(`cPlc${c}`).value=""; $(`cPOG${c}`).value="";
+    items.push({
+      hybrid:h,
+      pog:hasPOG?parseFloat(pogRaw):undefined,
+      placement:plcVal,
+      aopb:aopbVal,
+      lastPOG:lastMap[k]?.lastPOG||0
     });
-    $("eDecWarn").style.display="none";
-    $("eTotals").style.display="none";
-    // Reload table
-    $("eCrop").dispatchEvent(new Event("change"));
+  }
+
+  if(!items.length){
+    btn.innerHTML="📤 Submit Weekly Entry"; btn.disabled=false;
+    toast("Nothing submitted — fill at least one hybrid","warn");
+    return;
+  }
+
+  const payload={
+    tmName:tmP.name, tmMobile:tmP.mobile,
+    zone:tmP.zone, region:tmP.region, territory:tmP.territory,
+    season:tmP.season, sbu:tmP.sbu, crop,
+    weekDate:wd, weekLabel:wl,
+    seasonProgress:parseFloat(sp)||0,
+    currentYEF:parseFloat(yef)||0,
+    prevYEF:lastYEF,
+    comp:{
+      plcBayer:parseFloat($("cPlcBayer")?.value)||0,     pogBayer:parseFloat($("cPOGBayer")?.value)||0,
+      plcCorteva:parseFloat($("cPlcCorteva")?.value)||0, pogCorteva:parseFloat($("cPOGCorteva")?.value)||0,
+      plcSyngenta:parseFloat($("cPlcSyngenta")?.value)||0, pogSyngenta:parseFloat($("cPOGSyngenta")?.value)||0,
+      plcAdvanta:parseFloat($("cPlcAdvanta")?.value)||0, pogAdvanta:parseFloat($("cPOGAdvanta")?.value)||0,
+      plcOthers:parseFloat($("cPlcOthers")?.value)||0,   pogOthers:parseFloat($("cPOGOthers")?.value)||0
+    },
+    hybrids:items
+  };
+
+  const res=await call({action:"submit_week", payload:JSON.stringify(payload)});
+  btn.innerHTML="📤 Submit Weekly Entry"; btn.disabled=false;
+
+  if(res && res.ok){
+    const lockedCount=(res.results||[]).filter(r=>r.aopb==="already_locked").length;
+    let msg=`✅ ${res.submittedHybrids||0} hybrid entries submitted — pending approval`;
+    if(lockedCount>0) msg+=` (${lockedCount} AOPB already locked, skipped)`;
+    toast(msg);
+    clearEntryForm();
     loadTMStats();
     myRows=[];
-  } else toast("Nothing submitted — fill at least one hybrid","warn");
+  } else {
+    // Network failure OR backend rejected it — never lose the data, queue it.
+    queueForRetry(payload);
+    toast("⚠️ Couldn't reach server — entry saved, will auto-sync when back online","warn");
+    clearEntryForm();
+  }
+}
+
+function clearEntryForm(){
+  $("eYEF").value=""; $("eSP").value="";
+  ["Bayer","Corteva","Syngenta","Advanta","Others"].forEach(c=>{
+    $(`cPlc${c}`).value=""; $(`cPOG${c}`).value="";
+  });
+  $("eDecWarn").style.display="none";
+  $("eTotals").style.display="none";
+  $("eCrop").dispatchEvent(new Event("change"));
 }
 
 /* ================================================================
@@ -1221,7 +1282,7 @@ async function loadCEO(){
   // YEF
   const yefC={};
   latest.forEach(r=>{const c=r.Crop||"?";if(!yefC[c])yefC[c]={pog:0,yef:0,yc:0};yefC[c].pog+=(parseFloat(r.CumulativePOG)||0);yefC[c].yef+=parseFloat(r.CurrentYEF)||0;yefC[c].yc+=parseFloat(r.YEFChange)||0;});
-  $("cYEF").innerHTML=`<div class="tw"><table>
+  $("cYEFTable").innerHTML=`<div class="tw"><table>
     <tr><th>Crop</th><th>AOPB</th><th>POG</th><th>YEF</th><th>YEF Change</th></tr>
     ${Object.entries(yefC).map(([c,d])=>`<tr><td><b>${c}</b></td><td>${fN(cAOPB2[c]||0)}</td><td>${fN(d.pog)}</td><td>${fN(d.yef)}</td>
       <td class="${d.yc>=0?"pval":"nval"}" style="font-weight:700;">${d.yc>=0?"▲ +":"▼ "}${fN(Math.abs(d.yc))}</td></tr>`).join("")}
@@ -1232,14 +1293,14 @@ async function loadCEO(){
     zoneM[z].pog+=(parseFloat(r.CumulativePOG)||0);zoneM[z].tms.add(r.TMName);
     if((parseFloat(r.WeekChange)||0)<0)zoneM[z].minus++;
   });
-  $("cZone").innerHTML=`<div class="tw"><table>
+  $("cZoneTable").innerHTML=`<div class="tw"><table>
     <tr><th>Zone</th><th>SBU</th><th>POG</th><th>TMs</th><th>⚠️</th></tr>
     ${Object.entries(zoneM).sort().map(([z,d])=>`<tr class="${d.minus>0?"mrow":""}">
       <td><b>${z}</b></td><td>${d.sbu}</td><td>${fN(d.pog)}</td><td>${d.tms.size}</td>
       <td class="${d.minus>0?"nval":"pval"}">${d.minus}</td></tr>`).join("")}
   </table></div>`;
   // All entries
-  $("cAll").innerHTML=`<div class="tw"><table>
+  $("cAllTable").innerHTML=`<div class="tw"><table>
     <tr><th>TM</th><th>SBU</th><th>Zone</th><th>Territory</th><th>Crop</th><th>Hybrid</th><th>Week</th><th>POG</th><th>+/-</th><th>YEF ▲▼</th><th>Ssn%</th></tr>
     ${latest.sort((a,b)=>(parseFloat(b.CumulativePOG)||0)-(parseFloat(a.CumulativePOG)||0)).slice(0,50).map(r=>{
       const chg=parseFloat(r.WeekChange)||0;const yc=parseFloat(r.YEFChange)||0;
@@ -1256,7 +1317,7 @@ async function loadCEO(){
 }
 
 function exportCSV(){
-  const tbl=$("cAll").querySelector("table");
+  const tbl=$("cAllTable").querySelector("table");
   if(!tbl){toast("No data","err");return;}
   const csv=Array.from(tbl.rows).map(r=>Array.from(r.cells).map(c=>'"'+c.textContent.trim().replace(/"/g,'""')+'"').join(",")).join("\n");
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
