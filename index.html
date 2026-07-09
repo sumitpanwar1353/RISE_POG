@@ -327,6 +327,9 @@ td:first-child{background:#fff;}
         <div class="stitle" style="margin-top:0;">My Territory — AOPB vs Placement vs POG</div>
         <div class="cbox"><canvas id="myChart"></canvas></div>
       </div>
+      <div class="card">
+        <div class="stitle" style="margin-top:0;">📈 My YEF Forecast (same view your RBM/ZM/SBU/CEO see)</div>
+        <div id="myYEFTracker"></div>
       <div id="myDataTable"></div>
     </div>
   </div>
@@ -390,6 +393,7 @@ td:first-child{background:#fff;}
         </select>
       </div>
       <div style="margin-top:8px;"><label>Territory</label><select id="dTerr" onchange="loadDash()"><option value="">All Territories</option></select></div>
+      <div style="margin-top:8px;"><label>📅 Period (submission window: 1-7 / 8-14 / 15-21 / 22-End)</label><select id="dPeriod" onchange="loadDash()"></select></div>
     </div>
     <div class="sgrid">
       <div class="stat g"><div class="lbl">Total POG</div><div class="num" id="dPOG">—</div></div>
@@ -402,8 +406,12 @@ td:first-child{background:#fff;}
       <div class="cbox"><canvas id="dChart"></canvas></div>
     </div>
     <div class="card">
-      <div class="stitle" style="margin-top:0;">YEF & Season Progress (Crop-wise)</div>
+      <div class="stitle" style="margin-top:0;">AOPB / POG / Total YEF / Season% (Crop-wise)</div>
       <div id="dYEFTable"></div>
+    </div>
+    <div class="card">
+      <div class="stitle" style="margin-top:0;">📈 YEF — TM-wise breakdown (behind the total above)</div>
+      <div id="dYEFTracker"></div>
     </div>
     <div class="card">
       <div class="stitle" style="margin-top:0;">Competition (Crop-wise)</div>
@@ -446,6 +454,7 @@ td:first-child{background:#fff;}
       <div><label>Region</label><select id="cRegion" onchange="onCEORegionChange()"><option value="">All Regions</option></select></div>
       <div><label>Territory</label><select id="cTerr" onchange="loadCEO()"><option value="">All Territories</option></select></div>
     </div>
+    <div style="margin-top:8px;"><label>📅 Period (submission window: 1-7 / 8-14 / 15-21 / 22-End)</label><select id="cPeriod" onchange="loadCEO()" style="max-width:280px;"></select></div>
     <div style="margin-top:8px;">
       <button class="btn-sm" style="background:var(--gl);" onclick="loadCEO()">🔄 Refresh</button>
       <button class="btn-sm" style="background:var(--bd);margin-left:6px;" onclick="exportCSV()">⬇️ Export CSV</button>
@@ -460,6 +469,7 @@ td:first-child{background:#fff;}
   <div class="card"><div class="stitle" style="margin-top:0;">POG by SBU</div><div class="cbox"><canvas id="cSBUChart"></canvas></div></div>
   <div class="card"><div class="stitle" style="margin-top:0;">AOPB vs POG (Crop-wise)</div><div class="cbox"><canvas id="cCropChart"></canvas></div></div>
   <div class="card"><div class="stitle" style="margin-top:0;">YEF Analysis</div><div id="cYEFTable"></div></div>
+  <div class="card"><div class="stitle" style="margin-top:0;">📈 YEF — TM-wise breakdown (behind the total above)</div><div id="cYEFTracker"></div></div>
   <div class="card"><div class="stitle" style="margin-top:0;">Competition (Crop-wise)</div><div id="cCompTable"></div></div>
   <div class="card"><div class="stitle" style="margin-top:0;">Zone-wise Summary</div><div id="cZoneTable"></div></div>
   <div class="card">
@@ -536,6 +546,61 @@ const N = v => String(v||"").trim().toUpperCase();
 const fN = v => (parseFloat(v)||0).toLocaleString("en-IN");
 const $ = id => document.getElementById(id);
 
+/* ---------- SUBMISSION PERIODS (fixed monthly cadence: 7 / 14 / 21 / month-end) ---------- */
+const MONTH_NAMES=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function getPeriodKey(dateStr){
+  if(!dateStr) return null;
+  const d=new Date(dateStr);
+  if(isNaN(d)) return null;
+  const day=d.getDate(), y=d.getFullYear(), m=d.getMonth()+1;
+  const p = day<=7?1:day<=14?2:day<=21?3:4;
+  return `${y}-${String(m).padStart(2,"0")}-P${p}`;
+}
+function getPeriodEndDate(key){
+  const [y,m,pStr]=key.split("-");
+  const year=parseInt(y), month=parseInt(m), p=parseInt(pStr.replace("P",""));
+  const endDay = p===1?7:p===2?14:p===3?21:new Date(year,month,0).getDate();
+  return new Date(year, month-1, endDay, 23,59,59);
+}
+function getPeriodLabel(key){
+  if(!key) return "";
+  const [y,m,pStr]=key.split("-");
+  const p=parseInt(pStr.replace("P",""));
+  const ranges={1:"1–7",2:"8–14",3:"15–21",4:"22–End"};
+  return `${MONTH_NAMES[parseInt(m)-1]} ${ranges[p]}, ${y}`;
+}
+function prevPeriodKey(key){
+  const [y,m,pStr]=key.split("-");
+  let year=parseInt(y), month=parseInt(m), p=parseInt(pStr.replace("P",""))-1;
+  if(p<1){ p=4; month--; if(month<1){month=12;year--;} }
+  return `${year}-${String(month).padStart(2,"0")}-P${p}`;
+}
+function distinctPeriods(rows){
+  const set=new Set();
+  rows.forEach(r=>{ const k=getPeriodKey(r.WeekDate); if(k) set.add(k); });
+  return [...set].sort().reverse(); // most recent first
+}
+// Latest row per key, counting only entries submitted on/before endDate (carry-forward for
+// TMs who haven't submitted in the selected period — their last known value still counts).
+function snapshotAsOf(rows, endDate, keyFn){
+  const map={};
+  rows.forEach(r=>{
+    const rd=new Date(r.WeekDate||r.Timestamp);
+    if(endDate && rd>endDate) return;
+    const k=keyFn(r);
+    if(!map[k]||new Date(r.Timestamp)>new Date(map[k].Timestamp)) map[k]=r;
+  });
+  return Object.values(map);
+}
+function populatePeriodSelect(sel, rows, onChangeFn){
+  if(!sel) return;
+  const periods=distinctPeriods(rows);
+  const prevVal=sel.value;
+  sel.innerHTML=periods.map((k,i)=>`<option value="${k}">${getPeriodLabel(k)}${i===0?" (latest)":""}</option>`).join("");
+  if(periods.includes(prevVal)) sel.value=prevVal;
+}
+
+
 /* ---------- STATE ---------- */
 let role=null, pendRole=null;
 let tmP=null; // TM profile
@@ -611,6 +676,47 @@ function mkChart(id,type,labels,datasets,opts={}){
       plugins:{...opts.plugins,legend:{position:"bottom",labels:{font:{size:10},boxWidth:10},...(opts.plugins?.legend?.labels||{})}}}
   });
 }
+
+/* ---------- YEF FORECAST TRACKER ----------
+   YEF is a per-TM, per-Crop FORECAST (Year-End Forecast). A single TM's own value must
+   NEVER be treated as additive across weeks — whatever they enter this week IS their
+   complete new forecast, replacing (not adding to) last week's number.
+   This tracker shows that per-TM breakdown (Last → Current → ▲/▼), same at every role
+   level. Separately, the crop-level summary tables SUM each TM's latest forecast together
+   to get a Region/Zone/SBU/CEO "Total YEF", with its own total-level ▲/▼ vs last week
+   (computed as sum(CurrentYEF) - sum(PrevYEF) across TMs in scope) — that total IS a
+   legitimate sum across TMs, it's only sequential entries from the SAME TM that must
+   never be added together. */
+/* Period-aware variant — used by SBU/Zone/CEO dashboards once a specific submission
+   period (7/14/21/month-end) is selected. Joins the "as of this period" snapshot against
+   the "as of previous period" snapshot per TM+Crop, so the comparison is a true period-to-
+   period one (not just "vs whatever this TM's own last submission said"), and correctly
+   carries a TM's last known value forward if they didn't submit again in a given period. */
+function renderYEFTrackerPeriod(currentSnapshot, prevSnapshot, showZone){
+  const prevMap={};
+  prevSnapshot.forEach(r=>{ prevMap[`${N(r.TMName)}|${N(r.Crop)}`]=parseFloat(r.CurrentYEF)||0; });
+  const rows=currentSnapshot.filter(r=>parseFloat(r.CurrentYEF)>0);
+  if(!rows.length) return '<div class="empty"><div class="ei">📭</div>No YEF submitted yet</div>';
+  rows.sort((a,b)=>(parseFloat(b.CurrentYEF)||0)-(parseFloat(a.CurrentYEF)||0));
+  return `<div class="tw"><table>
+    <tr><th>TM</th>${showZone?"<th>Zone</th>":""}<th>Territory</th><th>Crop</th><th>Last Period</th><th>This Period</th><th>vs Last Period</th></tr>
+    ${rows.map(r=>{
+      const cur=parseFloat(r.CurrentYEF)||0;
+      const key=`${N(r.TMName)}|${N(r.Crop)}`;
+      const hasPrev=key in prevMap;
+      const last=hasPrev?prevMap[key]:0;
+      const chg=cur-last;
+      return`<tr class="${chg<0?"mrow":""}">
+        <td><b>${r.TMName}</b></td>${showZone?`<td>${r.Zone}</td>`:""}<td>${r.Territory}</td><td>${r.Crop}</td>
+        <td>${hasPrev?fN(last):"—"}</td>
+        <td><b>${fN(cur)}</b></td>
+        <td>${hasPrev?`<span class="${chg>=0?"pval":"nval"}">${chg>=0?"▲ +":"▼ "}${fN(Math.abs(chg))}</span>`:'<span style="color:var(--gray);">New this period</span>'}</td>
+      </tr>`;
+    }).join("")}
+  </table></div>`;
+}
+
+
 
 /* ================================================================
    LOGIN
@@ -994,12 +1100,19 @@ function renderMyChart(){
   const byCropAOPB={};
   myAOPBRows.forEach(r=>{const c=r.Crop||"?";byCropAOPB[c]=(byCropAOPB[c]||0)+(parseFloat(r.AOPB)||0);});
   const crops=[...new Set([...Object.keys(byCropPOG),...Object.keys(byCropAOPB)])];
-  if(!crops.length){ if(charts["myChart"]){charts["myChart"].destroy();delete charts["myChart"];} return; }
-  mkChart("myChart","bar",crops,[
+  if(!crops.length){ if(charts["myChart"]){charts["myChart"].destroy();delete charts["myChart"];} }
+  else mkChart("myChart","bar",crops,[
     {label:"AOPB",data:crops.map(c=>byCropAOPB[c]||0),backgroundColor:"#D9A441",borderRadius:4},
     {label:"Placement",data:crops.map(c=>byCropPlc[c]||0),backgroundColor:"#2E5FA3",borderRadius:4},
     {label:"POG",data:crops.map(c=>byCropPOG[c]||0),backgroundColor:"#2E8B57",borderRadius:4}
   ],{scales:{y:{beginAtZero:true}}});
+  // YEF tracker — one row per crop (this TM only), same rendering used at every role level
+  const cropLatMap={};
+  myRows.forEach(r=>{
+    const k=r.Crop;
+    if(!cropLatMap[k]||new Date(r.Timestamp)>new Date(cropLatMap[k].Timestamp)) cropLatMap[k]=r;
+  });
+  if($("myYEFTracker")) $("myYEFTracker").innerHTML=renderYEFTracker(Object.values(cropLatMap), false);
 }
 
 function checkYEFTrend(){
@@ -1283,30 +1396,25 @@ async function loadDash(){
   if(selRegion) rows=rows.filter(r=>N(r.Region)===N(selRegion));
   if(selTerr) rows=rows.filter(r=>N(r.Territory)===N(selTerr));
   const aopbRows=(aopbRes?.rows||[]).filter(r=>normZ.includes(N(r.Zone)));
-  // Hybrid-level latest — correct granularity for POG / Placement / WeekChange
-  const latMap={};
-  rows.forEach(r=>{
-    const k=`${N(r.TMName)}|${N(r.Crop)}|${N(r.Hybrid)}`;
-    if(!latMap[k]||new Date(r.Timestamp)>new Date(latMap[k].Timestamp)) latMap[k]=r;
-  });
-  const latest=Object.values(latMap);
-  // Crop-level latest (ONE row per TM+Crop) — correct granularity for YEF / Season% /
-  // Competition, since these are entered ONCE per crop per week but get stamped onto
-  // every hybrid row in a submission. Summing/averaging the hybrid-level rows for these
-  // fields multiplies every TM's real number by however many hybrids they submitted —
-  // that was the reported YEF/Ssn% inflation bug. Fix: dedupe to TM+Crop before using them.
-  const cropLatMap={};
-  rows.forEach(r=>{
-    const k=`${N(r.TMName)}|${N(r.Crop)}`;
-    if(!cropLatMap[k]||new Date(r.Timestamp)>new Date(cropLatMap[k].Timestamp)) cropLatMap[k]=r;
-  });
-  const cropLatest=Object.values(cropLatMap);
+
+  // Period selector — fixed submission cadence (7 / 14 / 21 / month-end)
+  populatePeriodSelect($("dPeriod"), rows);
+  const selPeriod=$("dPeriod")?.value||distinctPeriods(rows)[0];
+  const periodEnd=selPeriod?getPeriodEndDate(selPeriod):null;
+  const prevKey=selPeriod?prevPeriodKey(selPeriod):null;
+  const prevEnd=prevKey?getPeriodEndDate(prevKey):null;
+
+  // Hybrid-level snapshot AS OF the selected period — correct granularity for POG/Placement
+  const latest=snapshotAsOf(rows, periodEnd, r=>`${N(r.TMName)}|${N(r.Crop)}|${N(r.Hybrid)}`);
+  // Crop-level snapshot (ONE row per TM+Crop) AS OF selected period, and the SAME as of the
+  // previous period — correct granularity for YEF / Season% / Competition (entered once per
+  // crop, not per hybrid — summing hybrid-level rows for these was the inflation bug).
+  const cropLatest=snapshotAsOf(rows, periodEnd, r=>`${N(r.TMName)}|${N(r.Crop)}`);
+  const cropLatestPrev=prevEnd?snapshotAsOf(rows, prevEnd, r=>`${N(r.TMName)}|${N(r.Crop)}`):[];
 
   const totalPOG=latest.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
   const totalAOPB=aopbRows.reduce((s,r)=>s+(parseFloat(r.AOPB)||0),0);
   const pct=totalAOPB>0?Math.round(totalPOG/totalAOPB*100):0;
-  const spVals=cropLatest.map(r=>parseFloat(r.SeasonProgress)||0).filter(v=>v>0);
-  const avgSP=spVals.length?Math.round(spVals.reduce((s,v)=>s+v,0)/spVals.length):0;
   $("dPOG").textContent=fN(totalPOG);$("dAOPB").textContent=fN(totalAOPB);
   $("dPCT").textContent=pct+"%";$("dMinus").textContent=latest.filter(r=>(parseFloat(r.WeekChange)||0)<0).length;
   // Chart
@@ -1318,24 +1426,38 @@ async function loadDash(){
     {label:"AOPB",data:crops.map(c=>cAOPB[c]||0),backgroundColor:"#D9A441",borderRadius:4},
     {label:"POG",data:crops.map(c=>cPOG[c]||0),backgroundColor:"#2E8B57",borderRadius:4}
   ],{scales:{y:{beginAtZero:true}}});
-  // YEF & Season% table — crop-level dedup (one value counted per TM, summed across TMs only)
-  const yefCrop={};
+  // Crop-level table — AOPB / POG / Avg Season% (legitimately sum/average across TMs)
+  // PLUS Total YEF = sum of every TM's forecast as of THIS period, vs sum as of the
+  // PREVIOUS period (true period-to-period comparison, not just "vs this TM's own last
+  // entry" — a TM who didn't submit this period still carries forward correctly on both sides).
+  const yefCrop={}, yefCropPrev={};
   cropLatest.forEach(r=>{
     const c=r.Crop||"?";
-    if(!yefCrop[c]) yefCrop[c]={yef:0,yc:0,sp:[]};
+    if(!yefCrop[c]) yefCrop[c]={yef:0,sp:[]};
     yefCrop[c].yef+=parseFloat(r.CurrentYEF)||0;
-    yefCrop[c].yc+=parseFloat(r.YEFChange)||0;
     if(parseFloat(r.SeasonProgress)>0) yefCrop[c].sp.push(parseFloat(r.SeasonProgress));
   });
+  cropLatestPrev.forEach(r=>{
+    const c=r.Crop||"?";
+    yefCropPrev[c]=(yefCropPrev[c]||0)+(parseFloat(r.CurrentYEF)||0);
+  });
+  const cropsAll=[...new Set([...Object.keys(cPOG),...Object.keys(cAOPB),...Object.keys(yefCrop)])];
   $("dYEFTable").innerHTML=`<div class="tw"><table>
-    <tr><th>Crop</th><th>POG</th><th>YEF (total)</th><th>YEF Change</th><th>Avg Ssn%</th></tr>
-    ${Object.entries(yefCrop).map(([c,d])=>{
-      const spc=d.sp.length?Math.round(d.sp.reduce((s,v)=>s+v,0)/d.sp.length):0;
-      return`<tr><td><b>${c}</b></td><td>${fN(cPOG[c]||0)}</td><td>${fN(d.yef)}</td>
-      <td class="${d.yc>=0?"pval":"nval"}" style="font-weight:700;">${d.yc>=0?"▲ +":"▼ "}${fN(Math.abs(d.yc))}</td>
+    <tr><th>Crop</th><th>AOPB</th><th>POG</th><th>Total YEF (${getPeriodLabel(selPeriod)})</th><th>vs ${prevKey?getPeriodLabel(prevKey):"Last"}</th><th>Avg Ssn%</th></tr>
+    ${cropsAll.map(c=>{
+      const sp=yefCrop[c]?.sp||[];
+      const spc=sp.length?Math.round(sp.reduce((s,v)=>s+v,0)/sp.length):0;
+      const cur=yefCrop[c]?.yef||0;
+      const prev=yefCropPrev[c]||0;
+      const chg=cur-prev;
+      return`<tr><td><b>${c}</b></td><td>${fN(cAOPB[c]||0)}</td><td>${fN(cPOG[c]||0)}</td>
+      <td><b>${fN(cur)}</b></td>
+      <td class="${chg>=0?"pval":"nval"}" style="font-weight:700;">${chg>=0?"▲ +":"▼ "}${fN(Math.abs(chg))}</td>
       <td>${spc}%</td></tr>`;
     }).join("")}
   </table></div>`;
+  // YEF Forecast Tracker — per TM+Crop, true period-to-period (drill-down behind the total above)
+  $("dYEFTracker").innerHTML=renderYEFTrackerPeriod(cropLatest, cropLatestPrev, myZones.length>1);
   // Competition — crop-level dedup + correct field names (CompPlc_X / CompPOG_X, with underscore
   // matching the Sheet headers — the old code read CompPlcX with no underscore, which was always
   // undefined, so this table has always shown zeros. Fixed.)
@@ -1352,30 +1474,26 @@ async function loadDash(){
     <div class="tw"><table><tr><th>Company</th><th>Placement</th><th>POG</th></tr>
     ${["Bayer","Corteva","Syngenta","Advanta","Others"].map(k=>`<tr><td>${k}</td><td>${fN(d[k].plc)}</td><td>${fN(d[k].pog)}</td></tr>`).join("")}
     </table></div></div>`).join("")||'<div class="empty"><div class="ei">📭</div>No data</div>';
-  // TM Summary — POG stays hybrid-level (correct sum), YEF/Season% use crop-level dedup
+  // TM Summary — POG (correct hybrid-level sum) + Season% average only. YEF lives in the
+  // dedicated tracker above (never summed across a TM's crops either — shown per-crop there).
   const tmMap={};
   latest.forEach(r=>{const t=r.TMName||"?";if(!tmMap[t])tmMap[t]={pog:0,zone:r.Zone,terr:r.Territory,minus:0};
     tmMap[t].pog+=(parseFloat(r.CumulativePOG)||0);
     if((parseFloat(r.WeekChange)||0)<0)tmMap[t].minus++;
   });
-  const tmSP={}, tmYEF={};
+  const tmSP={};
   cropLatest.forEach(r=>{
     const t=r.TMName||"?";
     if(!tmSP[t]) tmSP[t]=[];
     if(parseFloat(r.SeasonProgress)>0) tmSP[t].push(parseFloat(r.SeasonProgress));
-    if(!tmYEF[t]) tmYEF[t]={yef:0,yc:0};
-    tmYEF[t].yef+=parseFloat(r.CurrentYEF)||0;
-    tmYEF[t].yc+=parseFloat(r.YEFChange)||0;
   });
   $("dTMTable").innerHTML=`<div class="tw"><table>
-    <tr><th>TM</th><th>Zone</th><th>Territory</th><th>POG</th><th>YEF ▲▼</th><th>Avg Ssn%</th><th>⚠️</th></tr>
+    <tr><th>TM</th><th>Zone</th><th>Territory</th><th>POG</th><th>Avg Ssn%</th><th>⚠️</th></tr>
     ${Object.entries(tmMap).sort((a,b)=>b[1].pog-a[1].pog).map(([t,d])=>{
       const spArr=tmSP[t]||[];
       const sp=spArr.length?Math.round(spArr.reduce((s,v)=>s+v,0)/spArr.length):0;
-      const yc=tmYEF[t]?.yc||0;
       return`<tr class="${d.minus>0?"mrow":""}"><td><b>${t}</b></td><td>${d.zone}</td><td>${d.terr}</td>
         <td><b>${fN(d.pog)}</b></td>
-        <td class="${yc>=0?"pval":"nval"}">${yc>=0?"▲":"▼"}${fN(Math.abs(yc))}</td>
         <td>${sp}%</td><td class="${d.minus>0?"nval":"pval"}">${d.minus}</td></tr>`;
     }).join("")}
   </table></div>`;
@@ -1414,20 +1532,19 @@ async function loadCEO(){
   let aopbRows=aopbRes?.rows||[];
   if(zone) aopbRows=aopbRows.filter(r=>N(r.Zone)===N(zone));
   const rows=pogRes.rows;
-  const latMap={};
-  rows.forEach(r=>{
-    const k=`${N(r.TMName)}|${N(r.Crop)}|${N(r.Hybrid)}`;
-    if(!latMap[k]||new Date(r.Timestamp)>new Date(latMap[k].Timestamp)) latMap[k]=r;
-  });
-  const latest=Object.values(latMap);
-  // Crop-level dedup (one row per TM+Crop) for YEF / Season% / Competition — same fix as
-  // the SBU/Zone dashboard: these fields are entered once per crop, not per hybrid.
-  const cropLatMap={};
-  rows.forEach(r=>{
-    const k=`${N(r.TMName)}|${N(r.Crop)}`;
-    if(!cropLatMap[k]||new Date(r.Timestamp)>new Date(cropLatMap[k].Timestamp)) cropLatMap[k]=r;
-  });
-  const cropLatest=Object.values(cropLatMap);
+
+  // Period selector — fixed submission cadence (7 / 14 / 21 / month-end)
+  populatePeriodSelect($("cPeriod"), rows);
+  const selPeriod=$("cPeriod")?.value||distinctPeriods(rows)[0];
+  const periodEnd=selPeriod?getPeriodEndDate(selPeriod):null;
+  const prevKey=selPeriod?prevPeriodKey(selPeriod):null;
+  const prevEnd=prevKey?getPeriodEndDate(prevKey):null;
+
+  const latest=snapshotAsOf(rows, periodEnd, r=>`${N(r.TMName)}|${N(r.Crop)}|${N(r.Hybrid)}`);
+  // Crop-level snapshot for YEF / Season% / Competition — this period and previous period
+  const cropLatest=snapshotAsOf(rows, periodEnd, r=>`${N(r.TMName)}|${N(r.Crop)}`);
+  const cropLatestPrev=prevEnd?snapshotAsOf(rows, prevEnd, r=>`${N(r.TMName)}|${N(r.Crop)}`):[];
+
   const totalPOG=latest.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
   const totalAOPB=aopbRows.reduce((s,r)=>s+(parseFloat(r.AOPB)||0),0);
   const pct=totalAOPB>0?Math.round(totalPOG/totalAOPB*100):0;
@@ -1445,24 +1562,31 @@ async function loadCEO(){
     {label:"AOPB",data:crops2.map(c=>cAOPB2[c]||0),backgroundColor:"#D9A441",borderRadius:4},
     {label:"POG",data:crops2.map(c=>cPOG[c]||0),backgroundColor:"#2E8B57",borderRadius:4}
   ],{scales:{y:{beginAtZero:true}}});
-  // YEF & Season% — crop-level dedup (fixes the same hybrid-count inflation bug at CEO level)
-  const yefC={};
+  // YEF & Season% — crop-level dedup, true period-to-period comparison
+  const yefC={}, yefCPrev={};
   cropLatest.forEach(r=>{
     const c=r.Crop||"?";
-    if(!yefC[c]) yefC[c]={yef:0,yc:0,sp:[]};
+    if(!yefC[c]) yefC[c]={yef:0,sp:[]};
     yefC[c].yef+=parseFloat(r.CurrentYEF)||0;
-    yefC[c].yc+=parseFloat(r.YEFChange)||0;
     if(parseFloat(r.SeasonProgress)>0) yefC[c].sp.push(parseFloat(r.SeasonProgress));
   });
+  cropLatestPrev.forEach(r=>{
+    const c=r.Crop||"?";
+    yefCPrev[c]=(yefCPrev[c]||0)+(parseFloat(r.CurrentYEF)||0);
+  });
   $("cYEFTable").innerHTML=`<div class="tw"><table>
-    <tr><th>Crop</th><th>AOPB</th><th>POG</th><th>YEF (total)</th><th>YEF Change</th><th>Avg Ssn%</th></tr>
+    <tr><th>Crop</th><th>AOPB</th><th>POG</th><th>Total YEF (${getPeriodLabel(selPeriod)})</th><th>vs ${prevKey?getPeriodLabel(prevKey):"Last"}</th><th>Avg Ssn%</th></tr>
     ${Object.entries(yefC).map(([c,d])=>{
       const spc=d.sp.length?Math.round(d.sp.reduce((s,v)=>s+v,0)/d.sp.length):0;
-      return`<tr><td><b>${c}</b></td><td>${fN(cAOPB2[c]||0)}</td><td>${fN(cPOG[c]||0)}</td><td>${fN(d.yef)}</td>
-      <td class="${d.yc>=0?"pval":"nval"}" style="font-weight:700;">${d.yc>=0?"▲ +":"▼ "}${fN(Math.abs(d.yc))}</td>
+      const chg=d.yef-(yefCPrev[c]||0);
+      return`<tr><td><b>${c}</b></td><td>${fN(cAOPB2[c]||0)}</td><td>${fN(cPOG[c]||0)}</td>
+      <td><b>${fN(d.yef)}</b></td>
+      <td class="${chg>=0?"pval":"nval"}" style="font-weight:700;">${chg>=0?"▲ +":"▼ "}${fN(Math.abs(chg))}</td>
       <td>${spc}%</td></tr>`;
     }).join("")}
   </table></div>`;
+  // YEF Forecast Tracker — per TM+Crop, true period-to-period (drill-down behind the total above)
+  if($("cYEFTracker")) $("cYEFTracker").innerHTML=renderYEFTrackerPeriod(cropLatest, cropLatestPrev, true);
   // Competition (crop-level dedup, correct field names)
   const compC={};
   cropLatest.forEach(r=>{const c=r.Crop||"?";if(!compC[c])compC[c]={};
