@@ -286,17 +286,18 @@ td:first-child{background:#fff;}
           <div class="stitle">Competition (Crop-level)</div>
           <div class="tw">
             <table>
-              <thead><tr><th>Company</th><th>Placement</th><th>POG</th></tr></thead>
+              <thead><tr><th>Company</th><th>Last Time</th><th>Placement</th><th>POG</th></tr></thead>
               <tbody>
-                <tr><td><b>Bayer</b></td><td><input type="number" id="cPlcBayer" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td><td><input type="number" id="cPOGBayer" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td></tr>
-                <tr><td><b>Corteva</b></td><td><input type="number" id="cPlcCorteva" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td><td><input type="number" id="cPOGCorteva" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td></tr>
-                <tr><td><b>Syngenta</b></td><td><input type="number" id="cPlcSyngenta" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td><td><input type="number" id="cPOGSyngenta" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td></tr>
-                <tr><td><b>Advanta</b></td><td><input type="number" id="cPlcAdvanta" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td><td><input type="number" id="cPOGAdvanta" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td></tr>
-                <tr><td><b>Others</b></td><td><input type="number" id="cPlcOthers" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td><td><input type="number" id="cPOGOthers" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td></tr>
+                <tr><td><b>Bayer</b></td><td><span class="lpog" id="cLastBayer">—</span></td><td><input type="number" id="cPlcBayer" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td><td><input type="number" id="cPOGBayer" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td></tr>
+                <tr><td><b>Corteva</b></td><td><span class="lpog" id="cLastCorteva">—</span></td><td><input type="number" id="cPlcCorteva" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td><td><input type="number" id="cPOGCorteva" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td></tr>
+                <tr><td><b>Syngenta</b></td><td><span class="lpog" id="cLastSyngenta">—</span></td><td><input type="number" id="cPlcSyngenta" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td><td><input type="number" id="cPOGSyngenta" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td></tr>
+                <tr><td><b>Advanta</b></td><td><span class="lpog" id="cLastAdvanta">—</span></td><td><input type="number" id="cPlcAdvanta" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td><td><input type="number" id="cPOGAdvanta" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td></tr>
+                <tr><td><b>Others</b></td><td><span class="lpog" id="cLastOthers">—</span></td><td><input type="number" id="cPlcOthers" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td><td><input type="number" id="cPOGOthers" placeholder="0" style="width:100%;padding:7px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;"></td></tr>
               </tbody>
             </table>
           </div>
         </div>
+
 
         <button class="btn btn-g" id="eSubmitBtn" onclick="submitWeekly()">📤 Submit Weekly Entry</button>
       </div>
@@ -322,6 +323,10 @@ td:first-child{background:#fff;}
         </div>
       </div>
       <div id="yefAlert" style="display:none;" class="dbox">🔴 YEF continuously decreasing — visible to all managers.</div>
+      <div class="card">
+        <div class="stitle" style="margin-top:0;">My Territory — AOPB vs Placement vs POG</div>
+        <div class="cbox"><canvas id="myChart"></canvas></div>
+      </div>
       <div id="myDataTable"></div>
     </div>
   </div>
@@ -343,7 +348,7 @@ td:first-child{background:#fff;}
     <div class="card">
       <div class="row3">
         <div><label>Zone</label><select id="sZone" onchange="onSBUZoneChange()"><option value="">All Zones</option></select></div>
-        <div><label>Region</label><select id="sRegion" onchange="loadApprovals()"><option value="">All Regions</option></select></div>
+        <div><label>Region</label><select id="sRegion" onchange="onSBURegionChange()"><option value="">All Regions</option></select></div>
         <div><label>Season</label>
           <select id="sSeason" onchange="loadApprovals()">
             <option value="">All</option>
@@ -351,6 +356,7 @@ td:first-child{background:#fff;}
           </select>
         </div>
       </div>
+      <div style="margin-top:8px;"><label>Territory</label><select id="sTerr" onchange="loadApprovals()"><option value="">All Territories</option></select></div>
     </div>
     <div class="sgrid">
       <div class="stat w"><div class="lbl">Pending</div><div class="num" id="sPend">—</div></div>
@@ -368,7 +374,7 @@ td:first-child{background:#fff;}
     <div class="card">
       <div class="row3">
         <div><label>Zone</label><select id="dZone" onchange="onDashZoneChange()"><option value="">All Zones</option></select></div>
-        <div><label>Region</label><select id="dRegion" onchange="loadDash()"><option value="">All Regions</option></select></div>
+        <div><label>Region</label><select id="dRegion" onchange="onDashRegionChange()"><option value="">All Regions</option></select></div>
         <div><label>Crop</label>
           <select id="dCrop" onchange="loadDash()">
             <option value="">All Crops</option>
@@ -383,6 +389,7 @@ td:first-child{background:#fff;}
           <option>Kharif 26-27</option><option>Rabi 26-27</option>
         </select>
       </div>
+      <div style="margin-top:8px;"><label>Territory</label><select id="dTerr" onchange="loadDash()"><option value="">All Territories</option></select></div>
     </div>
     <div class="sgrid">
       <div class="stat g"><div class="lbl">Total POG</div><div class="num" id="dPOG">—</div></div>
@@ -432,6 +439,13 @@ td:first-child{background:#fff;}
         </select>
       </div>
     </div>
+    <div class="row3" style="margin-top:8px;">
+      <div><label>Zone</label><select id="cZone" onchange="onCEOZoneChange()"><option value="">All Zones</option>
+        <option>ZONE-1</option><option>ZONE-2</option><option>ZONE-3</option><option>ZONE-4</option><option>ZONE-5</option>
+      </select></div>
+      <div><label>Region</label><select id="cRegion" onchange="onCEORegionChange()"><option value="">All Regions</option></select></div>
+      <div><label>Territory</label><select id="cTerr" onchange="loadCEO()"><option value="">All Territories</option></select></div>
+    </div>
     <div style="margin-top:8px;">
       <button class="btn-sm" style="background:var(--gl);" onclick="loadCEO()">🔄 Refresh</button>
       <button class="btn-sm" style="background:var(--bd);margin-left:6px;" onclick="exportCSV()">⬇️ Export CSV</button>
@@ -446,6 +460,7 @@ td:first-child{background:#fff;}
   <div class="card"><div class="stitle" style="margin-top:0;">POG by SBU</div><div class="cbox"><canvas id="cSBUChart"></canvas></div></div>
   <div class="card"><div class="stitle" style="margin-top:0;">AOPB vs POG (Crop-wise)</div><div class="cbox"><canvas id="cCropChart"></canvas></div></div>
   <div class="card"><div class="stitle" style="margin-top:0;">YEF Analysis</div><div id="cYEFTable"></div></div>
+  <div class="card"><div class="stitle" style="margin-top:0;">Competition (Crop-wise)</div><div id="cCompTable"></div></div>
   <div class="card"><div class="stitle" style="margin-top:0;">Zone-wise Summary</div><div id="cZoneTable"></div></div>
   <div class="card">
     <div class="stitle" style="margin-top:0;">All Approved Entries</div>
@@ -775,6 +790,21 @@ $("eCrop").addEventListener("change",async()=>{
     $("eYEFInfo").style.display="block";
     $("eYEFInfo").textContent=`Last YEF: ${fN(lastYEF)} (${lastYEFLabel})`;
   }
+  // Last time's Competition Placement/POG — competition figures are entered once per crop
+  // (not per hybrid), so any one of this crop's returned rows carries the correct reference.
+  let lastCompRow=null;
+  (bulkRes?.rows||[]).forEach(r=>{
+    if(!lastCompRow||new Date(r.Timestamp)>new Date(lastCompRow.Timestamp)) lastCompRow=r;
+  });
+  ["Bayer","Corteva","Syngenta","Advanta","Others"].forEach(k=>{
+    const el=$(`cLast${k}`);
+    if(!el) return;
+    if(lastCompRow){
+      const plc=parseFloat(lastCompRow[`CompPlc_${k}`])||0;
+      const pog=parseFloat(lastCompRow[`CompPOG_${k}`])||0;
+      el.textContent=(plc>0||pog>0)?`Plc:${fN(plc)} · POG:${fN(pog)}`:"—";
+    } else el.textContent="—";
+  });
   // Build table
   const hybrids=CH[crop]||[];
   $("eBody2").innerHTML=hybrids.map(h=>{
@@ -800,6 +830,14 @@ $("eCrop").addEventListener("change",async()=>{
 $("eYEF").addEventListener("input",()=>{
   const cur=parseFloat($("eYEF").value)||0;
   $("eYEFWarn").style.display=(lastYEF>0&&cur>0&&cur<lastYEF)?"block":"none";
+  if(lastYEF>0){
+    const delta=cur-lastYEF;
+    const arrow=delta>=0?"▲":"▼";
+    const cls=delta>=0?"pval":"nval";
+    $("eYEFInfo").innerHTML=`Last YEF: ${fN(lastYEF)} (${lastYEFLabel})`+
+      (cur>0?` &nbsp;·&nbsp; <span class="${cls}">${arrow} ${fN(Math.abs(delta))} vs last</span>`:"");
+    $("eYEFInfo").style.display="block";
+  }
 });
 
 function recalc(h){
@@ -923,14 +961,45 @@ function clearEntryForm(){
 /* ================================================================
    TM — MY DATA
    ================================================================ */
+let myAOPBRows=[];
 async function loadMyData(){
   if(!tmP) return;
   $("myDataTable").innerHTML='<div style="text-align:center;padding:20px;"><span class="spin spin-dark"></span> Loading...</div>';
-  const res=await call({action:"get_pog", tmName:tmP.name, season:tmP.season});
+  const [res, aopbRes]=await Promise.all([
+    call({action:"get_pog", tmName:tmP.name, season:tmP.season}),
+    call({action:"get_aopb", tmName:tmP.name, season:tmP.season})
+  ]);
   myRows=res?.ok?res.rows:[];
+  myAOPBRows=aopbRes?.ok?aopbRes.rows:[];
   // Check YEF trend (2+ consecutive weeks decreasing for any crop)
   checkYEFTrend();
+  renderMyChart();
   renderMyData();
+}
+
+function renderMyChart(){
+  // Latest per Crop+Hybrid, grouped by Crop — AOPB vs Placement vs POG for this TM's territory
+  const latMap={};
+  myRows.forEach(r=>{
+    const k=`${r.Crop}|${r.Hybrid}`;
+    if(!latMap[k]||new Date(r.Timestamp)>new Date(latMap[k].Timestamp)) latMap[k]=r;
+  });
+  const latest=Object.values(latMap);
+  const byCropPOG={}, byCropPlc={};
+  latest.forEach(r=>{
+    const c=r.Crop||"?";
+    byCropPOG[c]=(byCropPOG[c]||0)+(parseFloat(r.CumulativePOG)||0);
+    byCropPlc[c]=(byCropPlc[c]||0)+(parseFloat(r.Placement)||0);
+  });
+  const byCropAOPB={};
+  myAOPBRows.forEach(r=>{const c=r.Crop||"?";byCropAOPB[c]=(byCropAOPB[c]||0)+(parseFloat(r.AOPB)||0);});
+  const crops=[...new Set([...Object.keys(byCropPOG),...Object.keys(byCropAOPB)])];
+  if(!crops.length){ if(charts["myChart"]){charts["myChart"].destroy();delete charts["myChart"];} return; }
+  mkChart("myChart","bar",crops,[
+    {label:"AOPB",data:crops.map(c=>byCropAOPB[c]||0),backgroundColor:"#D9A441",borderRadius:4},
+    {label:"Placement",data:crops.map(c=>byCropPlc[c]||0),backgroundColor:"#2E5FA3",borderRadius:4},
+    {label:"POG",data:crops.map(c=>byCropPOG[c]||0),backgroundColor:"#2E8B57",borderRadius:4}
+  ],{scales:{y:{beginAtZero:true}}});
 }
 
 function checkYEFTrend(){
@@ -1008,9 +1077,15 @@ function renderMyData(){
 /* ================================================================
    SBU / ZONE — SETUP
    ================================================================ */
-const SBU_ZONES={SBU1:["ZONE-1","ZONE-2"],SBU2:["ZONE-3","ZONE-4"],SBU3:["ZONE-5"]};
+const SBU_ZONES={SBU1:["ZONE-3","ZONE-4"],SBU2:["ZONE-1","ZONE-2"],SBU3:["ZONE-5"]};
 const ZONE_MAP={Z1:"ZONE-1",Z2:"ZONE-2",Z3:"ZONE-3",Z4:"ZONE-4",Z5:"ZONE-5"};
 let myZones=[];
+
+function populateTerrSelect(sel, regions){
+  if(!sel) return;
+  const territories=[...new Set(regions.flatMap(r=>RT[r]||[]))].sort();
+  sel.innerHTML='<option value="">All Territories</option>'+territories.map(t=>`<option>${t}</option>`).join("");
+}
 
 function setupSBU(){
   if(role.startsWith("SBU")){
@@ -1030,11 +1105,14 @@ function setupSBU(){
   }
   const allRegions=[...new Set(myZones.flatMap(z=>ZR[z]||[]))];
   $("sRegion").innerHTML='<option value="">All Regions</option>'+allRegions.map(r=>`<option>${r}</option>`).join("");
+  populateTerrSelect($("sTerr"), allRegions);
   const dz=$("dZone");
   if(dz){
     dz.innerHTML=(myZones.length>1?'<option value="">All Zones</option>':'')+myZones.map(z=>`<option>${z}</option>`).join("");
     if(myZones.length===1) dz.disabled=true;
   }
+  if($("dRegion")) $("dRegion").innerHTML='<option value="">All Regions</option>'+allRegions.map(r=>`<option>${r}</option>`).join("");
+  populateTerrSelect($("dTerr"), allRegions);
   loadApprovals();
 }
 
@@ -1050,6 +1128,14 @@ function onSBUZoneChange(){
   const z=$("sZone").value;
   const regions=z?(ZR[z]||[]):[...new Set(myZones.flatMap(v=>ZR[v]||[]))];
   $("sRegion").innerHTML='<option value="">All Regions</option>'+regions.map(r=>`<option>${r}</option>`).join("");
+  populateTerrSelect($("sTerr"), regions);
+  loadApprovals();
+}
+function onSBURegionChange(){
+  const r=$("sRegion").value;
+  const z=$("sZone").value;
+  const regions=r?[r]:(z?(ZR[z]||[]):[...new Set(myZones.flatMap(v=>ZR[v]||[]))]);
+  populateTerrSelect($("sTerr"), regions);
   loadApprovals();
 }
 
@@ -1057,8 +1143,17 @@ function onDashZoneChange(){
   const z=$("dZone")?.value||"";
   const regions=z?(ZR[z]||[]):[...new Set(myZones.flatMap(v=>ZR[v]||[]))];
   if($("dRegion")) $("dRegion").innerHTML='<option value="">All Regions</option>'+regions.map(r=>`<option>${r}</option>`).join("");
+  populateTerrSelect($("dTerr"), regions);
   loadDash();
 }
+function onDashRegionChange(){
+  const r=$("dRegion")?.value||"";
+  const z=$("dZone")?.value||"";
+  const regions=r?[r]:(z?(ZR[z]||[]):[...new Set(myZones.flatMap(v=>ZR[v]||[]))]);
+  populateTerrSelect($("dTerr"), regions);
+  loadDash();
+}
+
 
 /* ================================================================
    SBU / ZONE — APPROVALS
@@ -1066,6 +1161,7 @@ function onDashZoneChange(){
 async function loadApprovals(){
   const selZone=$("sZone")?.value||"";
   const selRegion=$("sRegion")?.value||"";
+  const selTerr=$("sTerr")?.value||"";
   const selSeason=$("sSeason")?.value||"";
   const targetZones=selZone?[selZone]:myZones;
   $("pendingList").innerHTML='<div style="text-align:center;padding:16px;"><span class="spin spin-dark"></span></div>';
@@ -1073,12 +1169,14 @@ async function loadApprovals(){
   if(selZone) params.zone=selZone;
   else if(myZones.length===1) params.zone=myZones[0];
   if(selRegion) params.region=selRegion;
+  if(selTerr) params.territory=selTerr;
   if(selSeason) params.season=selSeason;
   const res=await call(params);
   if(!res?.ok){$("pendingList").innerHTML='<div class="card empty"><div class="ei">❌</div>Error</div>';return;}
   const normZ=targetZones.map(z=>N(z));
   let rows=res.rows.filter(r=>normZ.includes(N(r.Zone)));
   if(selRegion) rows=rows.filter(r=>N(r.Region)===N(selRegion));
+  if(selTerr) rows=rows.filter(r=>N(r.Territory)===N(selTerr));
   // Latest per TM+Crop+Hybrid
   const latMap={};
   rows.forEach(r=>{
@@ -1167,6 +1265,7 @@ async function doRevert(rowID){
 async function loadDash(){
   const selZone=$("dZone")?.value||"";
   const selRegion=$("dRegion")?.value||"";
+  const selTerr=$("dTerr")?.value||"";
   const selSeason=$("dSeason")?.value||"";
   const selCrop=$("dCrop")?.value||"";
   const targetZones=selZone?[selZone]:myZones;
@@ -1174,6 +1273,7 @@ async function loadDash(){
   if(selZone) params.zone=selZone;
   else if(myZones.length===1) params.zone=myZones[0];
   if(selRegion) params.region=selRegion;
+  if(selTerr) params.territory=selTerr;
   if(selSeason) params.season=selSeason;
   if(selCrop) params.crop=selCrop;
   const [pogRes,aopbRes]=await Promise.all([call(params),call({action:"get_aopb"})]);
@@ -1181,17 +1281,31 @@ async function loadDash(){
   const normZ=targetZones.map(z=>N(z));
   let rows=pogRes.rows.filter(r=>normZ.includes(N(r.Zone)));
   if(selRegion) rows=rows.filter(r=>N(r.Region)===N(selRegion));
+  if(selTerr) rows=rows.filter(r=>N(r.Territory)===N(selTerr));
   const aopbRows=(aopbRes?.rows||[]).filter(r=>normZ.includes(N(r.Zone)));
+  // Hybrid-level latest — correct granularity for POG / Placement / WeekChange
   const latMap={};
   rows.forEach(r=>{
     const k=`${N(r.TMName)}|${N(r.Crop)}|${N(r.Hybrid)}`;
     if(!latMap[k]||new Date(r.Timestamp)>new Date(latMap[k].Timestamp)) latMap[k]=r;
   });
   const latest=Object.values(latMap);
+  // Crop-level latest (ONE row per TM+Crop) — correct granularity for YEF / Season% /
+  // Competition, since these are entered ONCE per crop per week but get stamped onto
+  // every hybrid row in a submission. Summing/averaging the hybrid-level rows for these
+  // fields multiplies every TM's real number by however many hybrids they submitted —
+  // that was the reported YEF/Ssn% inflation bug. Fix: dedupe to TM+Crop before using them.
+  const cropLatMap={};
+  rows.forEach(r=>{
+    const k=`${N(r.TMName)}|${N(r.Crop)}`;
+    if(!cropLatMap[k]||new Date(r.Timestamp)>new Date(cropLatMap[k].Timestamp)) cropLatMap[k]=r;
+  });
+  const cropLatest=Object.values(cropLatMap);
+
   const totalPOG=latest.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
   const totalAOPB=aopbRows.reduce((s,r)=>s+(parseFloat(r.AOPB)||0),0);
   const pct=totalAOPB>0?Math.round(totalPOG/totalAOPB*100):0;
-  const spVals=latest.map(r=>parseFloat(r.SeasonProgress)||0).filter(v=>v>0);
+  const spVals=cropLatest.map(r=>parseFloat(r.SeasonProgress)||0).filter(v=>v>0);
   const avgSP=spVals.length?Math.round(spVals.reduce((s,v)=>s+v,0)/spVals.length):0;
   $("dPOG").textContent=fN(totalPOG);$("dAOPB").textContent=fN(totalAOPB);
   $("dPCT").textContent=pct+"%";$("dMinus").textContent=latest.filter(r=>(parseFloat(r.WeekChange)||0)<0).length;
@@ -1204,22 +1318,33 @@ async function loadDash(){
     {label:"AOPB",data:crops.map(c=>cAOPB[c]||0),backgroundColor:"#D9A441",borderRadius:4},
     {label:"POG",data:crops.map(c=>cPOG[c]||0),backgroundColor:"#2E8B57",borderRadius:4}
   ],{scales:{y:{beginAtZero:true}}});
-  // YEF table
+  // YEF & Season% table — crop-level dedup (one value counted per TM, summed across TMs only)
   const yefCrop={};
-  latest.forEach(r=>{const c=r.Crop||"?";if(!yefCrop[c])yefCrop[c]={pog:0,yef:0,yc:0};yefCrop[c].pog+=(parseFloat(r.CumulativePOG)||0);yefCrop[c].yef+=parseFloat(r.CurrentYEF)||0;yefCrop[c].yc+=parseFloat(r.YEFChange)||0;});
+  cropLatest.forEach(r=>{
+    const c=r.Crop||"?";
+    if(!yefCrop[c]) yefCrop[c]={yef:0,yc:0,sp:[]};
+    yefCrop[c].yef+=parseFloat(r.CurrentYEF)||0;
+    yefCrop[c].yc+=parseFloat(r.YEFChange)||0;
+    if(parseFloat(r.SeasonProgress)>0) yefCrop[c].sp.push(parseFloat(r.SeasonProgress));
+  });
   $("dYEFTable").innerHTML=`<div class="tw"><table>
-    <tr><th>Crop</th><th>POG</th><th>YEF</th><th>YEF Change</th><th>Avg Ssn%</th></tr>
-    ${Object.entries(yefCrop).map(([c,d])=>`<tr><td><b>${c}</b></td><td>${fN(d.pog)}</td><td>${fN(d.yef)}</td>
+    <tr><th>Crop</th><th>POG</th><th>YEF (total)</th><th>YEF Change</th><th>Avg Ssn%</th></tr>
+    ${Object.entries(yefCrop).map(([c,d])=>{
+      const spc=d.sp.length?Math.round(d.sp.reduce((s,v)=>s+v,0)/d.sp.length):0;
+      return`<tr><td><b>${c}</b></td><td>${fN(cPOG[c]||0)}</td><td>${fN(d.yef)}</td>
       <td class="${d.yc>=0?"pval":"nval"}" style="font-weight:700;">${d.yc>=0?"▲ +":"▼ "}${fN(Math.abs(d.yc))}</td>
-      <td>${avgSP}%</td></tr>`).join("")}
+      <td>${spc}%</td></tr>`;
+    }).join("")}
   </table></div>`;
-  // Competition
+  // Competition — crop-level dedup + correct field names (CompPlc_X / CompPOG_X, with underscore
+  // matching the Sheet headers — the old code read CompPlcX with no underscore, which was always
+  // undefined, so this table has always shown zeros. Fixed.)
   const compC={};
-  latest.forEach(r=>{const c=r.Crop||"?";if(!compC[c])compC[c]={};
+  cropLatest.forEach(r=>{const c=r.Crop||"?";if(!compC[c])compC[c]={};
     ["Bayer","Corteva","Syngenta","Advanta","Others"].forEach(k=>{
       if(!compC[c][k])compC[c][k]={plc:0,pog:0};
-      compC[c][k].plc+=(parseFloat(r[`CompPlc${k}`])||0);
-      compC[c][k].pog+=(parseFloat(r[`CompPOG${k}`])||0);
+      compC[c][k].plc+=(parseFloat(r[`CompPlc_${k}`])||0);
+      compC[c][k].pog+=(parseFloat(r[`CompPOG_${k}`])||0);
     });
   });
   $("dCompTable").innerHTML=Object.entries(compC).map(([crop,d])=>`
@@ -1227,19 +1352,31 @@ async function loadDash(){
     <div class="tw"><table><tr><th>Company</th><th>Placement</th><th>POG</th></tr>
     ${["Bayer","Corteva","Syngenta","Advanta","Others"].map(k=>`<tr><td>${k}</td><td>${fN(d[k].plc)}</td><td>${fN(d[k].pog)}</td></tr>`).join("")}
     </table></div></div>`).join("")||'<div class="empty"><div class="ei">📭</div>No data</div>';
-  // TM Summary
+  // TM Summary — POG stays hybrid-level (correct sum), YEF/Season% use crop-level dedup
   const tmMap={};
-  latest.forEach(r=>{const t=r.TMName||"?";if(!tmMap[t])tmMap[t]={pog:0,zone:r.Zone,terr:r.Territory,minus:0,sp:[]};
+  latest.forEach(r=>{const t=r.TMName||"?";if(!tmMap[t])tmMap[t]={pog:0,zone:r.Zone,terr:r.Territory,minus:0};
     tmMap[t].pog+=(parseFloat(r.CumulativePOG)||0);
     if((parseFloat(r.WeekChange)||0)<0)tmMap[t].minus++;
-    if(parseFloat(r.SeasonProgress)>0)tmMap[t].sp.push(parseFloat(r.SeasonProgress));
+  });
+  const tmSP={}, tmYEF={};
+  cropLatest.forEach(r=>{
+    const t=r.TMName||"?";
+    if(!tmSP[t]) tmSP[t]=[];
+    if(parseFloat(r.SeasonProgress)>0) tmSP[t].push(parseFloat(r.SeasonProgress));
+    if(!tmYEF[t]) tmYEF[t]={yef:0,yc:0};
+    tmYEF[t].yef+=parseFloat(r.CurrentYEF)||0;
+    tmYEF[t].yc+=parseFloat(r.YEFChange)||0;
   });
   $("dTMTable").innerHTML=`<div class="tw"><table>
-    <tr><th>TM</th><th>Zone</th><th>Territory</th><th>POG</th><th>Avg Ssn%</th><th>⚠️</th></tr>
+    <tr><th>TM</th><th>Zone</th><th>Territory</th><th>POG</th><th>YEF ▲▼</th><th>Avg Ssn%</th><th>⚠️</th></tr>
     ${Object.entries(tmMap).sort((a,b)=>b[1].pog-a[1].pog).map(([t,d])=>{
-      const sp=d.sp.length?Math.round(d.sp.reduce((s,v)=>s+v,0)/d.sp.length):0;
+      const spArr=tmSP[t]||[];
+      const sp=spArr.length?Math.round(spArr.reduce((s,v)=>s+v,0)/spArr.length):0;
+      const yc=tmYEF[t]?.yc||0;
       return`<tr class="${d.minus>0?"mrow":""}"><td><b>${t}</b></td><td>${d.zone}</td><td>${d.terr}</td>
-        <td><b>${fN(d.pog)}</b></td><td>${sp}%</td><td class="${d.minus>0?"nval":"pval"}">${d.minus}</td></tr>`;
+        <td><b>${fN(d.pog)}</b></td>
+        <td class="${yc>=0?"pval":"nval"}">${yc>=0?"▲":"▼"}${fN(Math.abs(yc))}</td>
+        <td>${sp}%</td><td class="${d.minus>0?"nval":"pval"}">${d.minus}</td></tr>`;
     }).join("")}
   </table></div>`;
 }
@@ -1247,21 +1384,50 @@ async function loadDash(){
 /* ================================================================
    CEO DASHBOARD
    ================================================================ */
+function onCEOZoneChange(){
+  const z=$("cZone")?.value||"";
+  const regions=z?(ZR[z]||[]):Object.values(ZR).flat();
+  if($("cRegion")) $("cRegion").innerHTML='<option value="">All Regions</option>'+[...new Set(regions)].map(r=>`<option>${r}</option>`).join("");
+  populateTerrSelect($("cTerr"), regions);
+  loadCEO();
+}
+function onCEORegionChange(){
+  const r=$("cRegion")?.value||"";
+  const z=$("cZone")?.value||"";
+  const regions=r?[r]:(z?(ZR[z]||[]):Object.values(ZR).flat());
+  populateTerrSelect($("cTerr"), regions);
+  loadCEO();
+}
+
 async function loadCEO(){
   const season=$("cSeason")?.value||"";
   const crop=$("cCrop")?.value||"";
   const sbu=$("cSBU")?.value||"";
+  const zone=$("cZone")?.value||"";
+  const region=$("cRegion")?.value||"";
+  const terr=$("cTerr")?.value||"";
   const params={action:"get_pog",status:"Approved"};
   if(season)params.season=season;if(crop)params.crop=crop;if(sbu)params.sbu=sbu;
+  if(zone)params.zone=zone;if(region)params.region=region;if(terr)params.territory=terr;
   const [pogRes,aopbRes]=await Promise.all([call(params),call({action:"get_aopb"})]);
   if(!pogRes?.ok) return;
-  const aopbRows=aopbRes?.rows||[];
+  let aopbRows=aopbRes?.rows||[];
+  if(zone) aopbRows=aopbRows.filter(r=>N(r.Zone)===N(zone));
+  const rows=pogRes.rows;
   const latMap={};
-  pogRes.rows.forEach(r=>{
+  rows.forEach(r=>{
     const k=`${N(r.TMName)}|${N(r.Crop)}|${N(r.Hybrid)}`;
     if(!latMap[k]||new Date(r.Timestamp)>new Date(latMap[k].Timestamp)) latMap[k]=r;
   });
   const latest=Object.values(latMap);
+  // Crop-level dedup (one row per TM+Crop) for YEF / Season% / Competition — same fix as
+  // the SBU/Zone dashboard: these fields are entered once per crop, not per hybrid.
+  const cropLatMap={};
+  rows.forEach(r=>{
+    const k=`${N(r.TMName)}|${N(r.Crop)}`;
+    if(!cropLatMap[k]||new Date(r.Timestamp)>new Date(cropLatMap[k].Timestamp)) cropLatMap[k]=r;
+  });
+  const cropLatest=Object.values(cropLatMap);
   const totalPOG=latest.reduce((s,r)=>s+(parseFloat(r.CumulativePOG)||0),0);
   const totalAOPB=aopbRows.reduce((s,r)=>s+(parseFloat(r.AOPB)||0),0);
   const pct=totalAOPB>0?Math.round(totalPOG/totalAOPB*100):0;
@@ -1279,14 +1445,38 @@ async function loadCEO(){
     {label:"AOPB",data:crops2.map(c=>cAOPB2[c]||0),backgroundColor:"#D9A441",borderRadius:4},
     {label:"POG",data:crops2.map(c=>cPOG[c]||0),backgroundColor:"#2E8B57",borderRadius:4}
   ],{scales:{y:{beginAtZero:true}}});
-  // YEF
+  // YEF & Season% — crop-level dedup (fixes the same hybrid-count inflation bug at CEO level)
   const yefC={};
-  latest.forEach(r=>{const c=r.Crop||"?";if(!yefC[c])yefC[c]={pog:0,yef:0,yc:0};yefC[c].pog+=(parseFloat(r.CumulativePOG)||0);yefC[c].yef+=parseFloat(r.CurrentYEF)||0;yefC[c].yc+=parseFloat(r.YEFChange)||0;});
+  cropLatest.forEach(r=>{
+    const c=r.Crop||"?";
+    if(!yefC[c]) yefC[c]={yef:0,yc:0,sp:[]};
+    yefC[c].yef+=parseFloat(r.CurrentYEF)||0;
+    yefC[c].yc+=parseFloat(r.YEFChange)||0;
+    if(parseFloat(r.SeasonProgress)>0) yefC[c].sp.push(parseFloat(r.SeasonProgress));
+  });
   $("cYEFTable").innerHTML=`<div class="tw"><table>
-    <tr><th>Crop</th><th>AOPB</th><th>POG</th><th>YEF</th><th>YEF Change</th></tr>
-    ${Object.entries(yefC).map(([c,d])=>`<tr><td><b>${c}</b></td><td>${fN(cAOPB2[c]||0)}</td><td>${fN(d.pog)}</td><td>${fN(d.yef)}</td>
-      <td class="${d.yc>=0?"pval":"nval"}" style="font-weight:700;">${d.yc>=0?"▲ +":"▼ "}${fN(Math.abs(d.yc))}</td></tr>`).join("")}
+    <tr><th>Crop</th><th>AOPB</th><th>POG</th><th>YEF (total)</th><th>YEF Change</th><th>Avg Ssn%</th></tr>
+    ${Object.entries(yefC).map(([c,d])=>{
+      const spc=d.sp.length?Math.round(d.sp.reduce((s,v)=>s+v,0)/d.sp.length):0;
+      return`<tr><td><b>${c}</b></td><td>${fN(cAOPB2[c]||0)}</td><td>${fN(cPOG[c]||0)}</td><td>${fN(d.yef)}</td>
+      <td class="${d.yc>=0?"pval":"nval"}" style="font-weight:700;">${d.yc>=0?"▲ +":"▼ "}${fN(Math.abs(d.yc))}</td>
+      <td>${spc}%</td></tr>`;
+    }).join("")}
   </table></div>`;
+  // Competition (crop-level dedup, correct field names)
+  const compC={};
+  cropLatest.forEach(r=>{const c=r.Crop||"?";if(!compC[c])compC[c]={};
+    ["Bayer","Corteva","Syngenta","Advanta","Others"].forEach(k=>{
+      if(!compC[c][k])compC[c][k]={plc:0,pog:0};
+      compC[c][k].plc+=(parseFloat(r[`CompPlc_${k}`])||0);
+      compC[c][k].pog+=(parseFloat(r[`CompPOG_${k}`])||0);
+    });
+  });
+  if($("cCompTable")) $("cCompTable").innerHTML=Object.entries(compC).map(([crop,d])=>`
+    <div style="margin-bottom:10px;"><b style="font-size:13px;">${crop}</b>
+    <div class="tw"><table><tr><th>Company</th><th>Placement</th><th>POG</th></tr>
+    ${["Bayer","Corteva","Syngenta","Advanta","Others"].map(k=>`<tr><td>${k}</td><td>${fN(d[k].plc)}</td><td>${fN(d[k].pog)}</td></tr>`).join("")}
+    </table></div></div>`).join("")||'<div class="empty"><div class="ei">📭</div>No data</div>';
   // Zone summary
   const zoneM={};
   latest.forEach(r=>{const z=r.Zone||"?";if(!zoneM[z])zoneM[z]={pog:0,sbu:r.SBU||"",tms:new Set(),minus:0};
